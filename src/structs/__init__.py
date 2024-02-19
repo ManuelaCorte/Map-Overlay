@@ -1,7 +1,7 @@
 from ._geometry import Segment, Point, Line
-from ._overlay import EventPoint, Status
+from ._overlay import EventPoint, Status, EventType
 from ._tree import RedBlackTree
-from ._constants import EventType, EPS
+from ._constants import EPS
 
 __all__ = [
     "Segment",

@@ -3,6 +3,11 @@ from src.structs import Segment, Point
 
 
 def plot_intersections(segments: list[Segment], intersections: list[Point]):
+    """
+    Plot the segments and their intersections
+
+    Params:
+    -  segments - The list of segments to plot"""
     f, ax = plt.subplots(figsize=(10, 10))
     for segment in segments:
         ax.plot(

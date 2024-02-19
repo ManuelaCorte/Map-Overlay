@@ -6,6 +6,8 @@ from ._constants import EPS
 
 @dataclass
 class Point:
+    """A point in 2d space. Two points are considered equal if their coordinates are within EPS of each other"""
+
     x: float
     y: float
 
@@ -23,6 +25,9 @@ class Point:
 
 @dataclass(frozen=True)
 class Line:
+    """A infinite line in 2d space, represented by the equation y = mx + q. For vertical lines,
+    m is inf and q is the x coordinate of the line."""
+
     m: float
     q: float
 
@@ -66,7 +71,11 @@ class Line:
 
     @classmethod
     def from_points(cls, p1: Point, p2: Point) -> Self:
-        """Create a line from two points"""
+        """Create a line from two points as follows:
+        - m = (y2 - y1) / (x2 - x1)
+        - q = y1 - m * x1
+
+        If the line is vertical, m is inf and q is the x coordinate of the line."""
         if p1.x == p2.x:
             return cls(float("inf"), p1.x)
         m = (p2.y - p1.y) / (p2.x - p1.x)
@@ -75,11 +84,15 @@ class Line:
 
     @classmethod
     def from_line_offset(cls, line: Self, offset: float) -> Self:
-        """Create a line from another line with an offset"""
+        """Create a line by adding an offset to the q parameter of another line. This is useful for
+        creating parallel lines."""
         return cls(line.m, line.q + offset)
 
 
 class Segment:
+    """A line segment in 2d space, represented by two points. Two segments are considered equal if their endpoints are
+    equal."""
+
     def __init__(self, p1: Point, p2: Point) -> None:
         self.p1 = p1
         self.p2 = p2
@@ -107,7 +120,12 @@ class Segment:
         return self.p1.y == self.p2.y
 
     def order_by_y(self) -> tuple[Point, Point]:
-        """Order the segment points by their y coordinate"""
+        """Order the segment points by their y coordinate where the start point is the one with the highest y coordinate.
+        If both points have the same y coordinate, the start point is the one with the x coordinate most to the left.
+
+        Returns:
+            tuple[Point, Point]: The start and end points of the segment
+        """
         if self.p1.y > self.p2.y:
             return self.p1, self.p2
         elif self.p1.y < self.p2.y:
@@ -117,17 +135,24 @@ class Segment:
         return self.p2, self.p1
 
     def order_by_x(self) -> tuple[Point, Point]:
-        """Order the segment points by their x coordinate"""
+        """Order the segment points by their x coordinate where the start point is the one with the x coordinate most to the
+        left. If both points have the same x coordinate, the start point is the one with the highest y coordinate.
+
+        Returns:
+            tuple[Point, Point]: The start and end points of the segment
+        """
         if self.p1.x < self.p2.x:
             return self.p1, self.p2
         elif self.p1.x > self.p2.x:
             return self.p2, self.p1
-        elif self.p1.y < self.p2.y:
+        elif self.p1.y > self.p2.y:
             return self.p1, self.p2
         return self.p2, self.p1
 
     def contains(self, point: Point) -> bool:
-        """Check if a point is contained in the segment, including endpoints"""
+        """Check if a point is contained in the segment, endpoints included. The procedure is described
+        in https://lucidar.me/en/mathematics/check-if-a-point-belongs-on-a-line-segment/
+        """
         if point == self.p1 or point == self.p2:
             return True
 

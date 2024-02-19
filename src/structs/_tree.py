@@ -65,6 +65,15 @@ class TreeVisit(Enum):
 
 
 class RedBlackTree(Generic[Value]):
+    """Red-Black Tree implementation in Python. A red-black tree is a balanced binary search tree
+    with the following properties:
+    1. Every node is either red or black.
+    2. The root is black.
+    3. Every leaf (NIL) is black.
+    4. If a node is red, then both its children are black.
+    5. Every simple path from a node to a descendant leaf has the same number of black nodes.
+    """
+
     def __init__(self) -> None:
         self._root: Node[Value] = NullNode()
         self._size: int = 0
@@ -72,6 +81,7 @@ class RedBlackTree(Generic[Value]):
 
     @property
     def size(self) -> int:
+        """Number of nodes in the tree."""
         return self._size
 
     @property
@@ -111,7 +121,7 @@ class RedBlackTree(Generic[Value]):
 
     def levelorder(self) -> Iterator[Node[Value]]:
         """
-        Levelorder traversal of the tree (parnt, left sibling, right sibling).
+        Levelorder traversal of the tree (parent, left sibling, right sibling).
         """
         yield from self._levelorder(self._root)
 
@@ -126,11 +136,22 @@ class RedBlackTree(Generic[Value]):
         return node
 
     def minimum(self, node: Node[Value]) -> Node[Value]:
+        """
+        Find the minimum node in the tree rooted at the given node.
+
+        Returns:
+            Node: The minimum node in the tree."""
         while not node.left.is_null:
             node = node.left
         return node
 
     def maximum(self, node: Node[Value]) -> Node[Value]:
+        """
+        Find the maximum node in the tree rooted at the given node.
+
+        Returns:
+            Node: The maximum node in the tree."""
+
         while not node.right.is_null:
             node = node.right
         return node
@@ -155,7 +176,10 @@ class RedBlackTree(Generic[Value]):
         """
         Find the predecessor of the given node. The predecessor is the node with the largest value smaller than
         the given node and it's either the maximum node in the left subtree if the left subtree exists or
-        the first ancestor whose right child is also an ancestor of the given node."""
+        the first ancestor whose right child is also an ancestor of the given node.
+
+        Returns:
+            Node: The predecessor of the given node, or None if not found."""
         if not node.left.is_null:
             return self.maximum(node.left)
         parent = node.parent
@@ -167,6 +191,7 @@ class RedBlackTree(Generic[Value]):
     def insert(self, value: Value) -> Node[Value]:
         """
         Insert a new node with the given value as a new leaf keeping the tree balanced.
+        If the value already exists in the tree then the insertion is ignored.
 
         Returns:
             Node: The inserted node."""
@@ -180,7 +205,8 @@ class RedBlackTree(Generic[Value]):
 
     def delete(self, value: Value) -> None:
         """
-        Delete the node with the given value from the tree.
+        Delete the node with the given value from the tree. If the node does not exist in
+        the tree then the deletion is ignored.
         """
         node: Optional[Node[Value]] = self.search(value)
         if node is None:
@@ -219,17 +245,6 @@ class RedBlackTree(Generic[Value]):
                 left_child
         """
         self._print(self._root, 1)
-
-    def leaves(self) -> Iterator[Node[Value]]:
-        """
-        Return an iterator over the leaves of the tree from left to right.
-
-        Returns:
-            Iterator[Node[Value]]: An iterator over the leaves of the tree.
-        """
-        for node in self:
-            if node.left.is_null and node.right.is_null:
-                yield node
 
     ############################################
     # Private methods

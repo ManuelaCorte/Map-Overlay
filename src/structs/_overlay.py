@@ -1,6 +1,7 @@
 from dataclasses import dataclass
+from enum import Enum
 from typing import Optional
-from ._constants import EventType, EPS
+from ._constants import EPS
 from ._geometry import Point, Segment, Line
 from functools import total_ordering
 
@@ -8,12 +9,16 @@ from functools import total_ordering
 #########################################
 # Intersection data structures
 #########################################
+class EventType(Enum):
+    START = 1
+    INTERSECTION = 2
+    END = 3
 
 
 @dataclass
 @total_ordering
 class EventPoint:
-    """Event point fro the sweep line algorithm. Event points are ordered by their y
+    """Event point for the sweep line algorithm. Event points are ordered by their y
     from top to bottom. If the y coordinate is the same, they are ordered based on their
     x coordinate, left to right."""
 
@@ -39,7 +44,10 @@ class EventPoint:
 
     def add_segments(self, segments: Segment | list[Segment]) -> None:
         """Add a list of segments to the event point. If the segment is already in the event point,
-        it is not added again."""
+        it is not added again.
+
+        Params:
+        - segments: Segment | list[Segment]: The segments to add to the event point"""
         if isinstance(segments, Segment):
             segments = [segments]
         for segment in segments:
@@ -55,10 +63,7 @@ class Status:
         self.status: list[Segment] = []
         self._segments_scores: list[float] = []
 
-        self.status, self._segments_scores = self.sort(status, sweep_line)
-
-        self._horizontal_segment: Optional[Segment] = None
-        self._last_segment_before_horizontal: Optional[Segment] = None
+        self.status, self._segments_scores = self._sort(status, sweep_line)
 
     def __iter__(self):
         return iter(self.status)
@@ -75,53 +80,57 @@ class Status:
     def add(self, segments: Segment | list[Segment], sweep_line: Line) -> None:
         """Add a segment to the sweep line. The segment is inserted
         in the correct position based on where it intersects the horizontal sweep line.
+        For horizontal segments, the segment is inserted after the last element of the
+        newly inserted segments.
+
+        Params:
+        - segments: Segment | list[Segment]: The segments to add to the sweep line
         """
         if isinstance(segments, Segment):
             segments = [segments]
 
-        new_segments, _ = self.sort(segments, sweep_line, find_horizontal=True)
+        new_segments, new_scores = self._sort(segments, sweep_line)
+        old_segments, old_scores = self._sort(
+            self.status, sweep_line, previous_scores=self._segments_scores
+        )
 
-        self.status.extend(new_segments)
-        self.status, self._segments_scores = self.sort(self.status, sweep_line)
-        if self._horizontal_segment is not None:
-            if self._last_segment_before_horizontal is not None:
-                index = self.status.index(self._last_segment_before_horizontal)
-                self.status.insert(index + 1, self._horizontal_segment)
-                self._segments_scores.insert(
-                    index + 1, self._segments_scores[index] + EPS
-                )
-            else:
-                index = 0
-                start, _ = self._horizontal_segment.order_by_x()
-                horizontal_segment_score = start.x - EPS
-                for i in range(len(self._segments_scores)):
-                    if self._segments_scores[i] > horizontal_segment_score:
-                        index = i
-                        break
-                self.status.insert(index, self._horizontal_segment)
-                self._segments_scores.insert(index, horizontal_segment_score)
+        self.status, self._segments_scores = self._merge(
+            (old_segments, old_scores), (new_segments, new_scores)
+        )
 
     def remove(self, segments: list[Segment] | Segment) -> None:
-        """Remove a list of segments from the sweep line"""
+        """Remove a list of segments from the sweep line
+
+        Params:
+        - segments: list[Segment] | Segment: The segments to remove from the sweep line
+        """
         if isinstance(segments, Segment):
             segments = [segments]
         for segment in segments:
-            if (
-                self._horizontal_segment is not None
-                and segment == self._horizontal_segment
-            ):
-                self._horizontal_segment = None
-                self._last_segment_before_horizontal = None
             index = self.status.index(segment)
             self.status.pop(index)
             self._segments_scores.pop(index)
 
     def index(self, segment: Segment) -> int:
-        """Return the index of a segment in the sweep line"""
+        """Return the index of a segment in the sweep line. If the segment is not in the sweep line,
+        a ValueError is raised.
+
+        Params:
+        - segment: Segment: The segment to find in the sweep line
+        """
         return self.status.index(segment)
 
     def neighbours(self, point: Point) -> tuple[Optional[Segment], Optional[Segment]]:
-        """Return the left and right neighbours of a point in the sweep line"""
+        """Return the segments to the right and to the left of a point on the sweep line. If the point is
+        to the left of the first segment or to the right of the last segment, the corresponding neighbour
+        is None.
+
+        Params:
+        - point: Point: The point to find the neighbours for
+
+        Returns:
+        - tuple[Optional[Segment], Optional[Segment]]: The left and right segments of the point
+        """
         segments_intersection: list[tuple[Segment, float]] = []
         for segment in self.status:
             intersection = self._sort_key(segment, Line(0, point.y))
@@ -141,27 +150,85 @@ class Status:
                 break
         return left, right
 
-    def sort(
-        self, segments: list[Segment], sweep_line: Line, find_horizontal: bool = False
+    def _sort(
+        self,
+        segments: list[Segment],
+        sweep_line: Line,
+        previous_scores: Optional[list[float]] = None,
     ) -> tuple[list[Segment], list[float]]:
-        """Sort the segments in the sweep line based on their intersection with the sweep line"""
+        """Sort the segments in the sweep line based on their intersection with the sweep line. For horizontal
+        segments, if previous scores are provided then they're used. If not, the horizontal segment is inserted
+        at the end of the list."""
         status: list[tuple[Segment, float]] = []
-        for segment in segments:
+        horizontal_segment_idx: Optional[int] = None
+        for i, segment in enumerate(segments):
             if segment.is_horizontal:
-                if find_horizontal:
-                    self._horizontal_segment = segment
+                horizontal_segment_idx = i
                 continue
             status.append((segment, self._sort_key(segment, sweep_line)))
+
+        if horizontal_segment_idx is not None and previous_scores is not None:
+            status.append(
+                (
+                    segments[horizontal_segment_idx],
+                    previous_scores[horizontal_segment_idx],
+                )
+            )
+
         status = sorted(status, key=lambda x: x[1])
-        if find_horizontal:
+
+        if horizontal_segment_idx is not None and previous_scores is None:
+            horizontal_segment = segments[horizontal_segment_idx]
             if len(status) > 0:
-                self._last_segment_before_horizontal = status[-1][0]
+                max_segment = status[-1]
+                status.append((horizontal_segment, max_segment[1] + EPS))
             else:
-                self._last_segment_before_horizontal = None
+                start, _ = horizontal_segment.order_by_x()
+                status.append((horizontal_segment, start.x - EPS))
+
         return [segment for segment, _ in status], [score for _, score in status]
 
     def _sort_key(self, segment: Segment, sweep_line: Line) -> float:
         return segment.intersection_with_line(sweep_line).x
+
+    def _merge(
+        self,
+        l1: tuple[list[Segment], list[float]],
+        l2: tuple[list[Segment], list[float]],
+    ) -> tuple[list[Segment], list[float]]:
+        """Merges two sorted lists of segments based on their intersection with the sweep line into a single list.
+
+        Params:
+        - l1: tuple[list[Segment], list[float]]: The first list of segments and their intersection with the sweep line
+        - l2: tuple[list[Segment], list[float]]: The second list of segments and their intersection with the sweep line
+
+        Returns:
+        - tuple[list[Segment], list[float]]: The merged list of segments and their intersection with the sweep line
+        """
+        new_list: tuple[list[Segment], list[float]] = ([], [])
+
+        i, j = 0, 0
+        while i < len(l1[0]) and j < len(l2[0]):
+            if l1[1][i] < l2[1][j]:
+                new_list[0].append(l1[0][i])
+                new_list[1].append(l1[1][i])
+                i += 1
+            else:
+                new_list[0].append(l2[0][j])
+                new_list[1].append(l2[1][j])
+                j += 1
+
+        while i < len(l1[0]):
+            new_list[0].append(l1[0][i])
+            new_list[1].append(l1[1][i])
+            i += 1
+
+        while j < len(l2[0]):
+            new_list[0].append(l2[0][j])
+            new_list[1].append(l2[1][j])
+            j += 1
+
+        return new_list
 
 
 #########################################
