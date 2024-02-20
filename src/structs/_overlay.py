@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional
+from typing import Optional, TypeAlias
 from ._constants import EPS
 from ._geometry import Point, Segment, Line
 from functools import total_ordering
@@ -234,3 +234,43 @@ class Status:
 #########################################
 # Overlay data structures
 #########################################
+_Edge: TypeAlias = "Edge"
+
+
+@dataclass
+class Face:
+    """Representation of a face in the overlay of two planar subdivisions."""
+
+    face: str
+    outer_component: Optional[_Edge] = None
+    inner_components: Optional[list[_Edge]] = None
+
+
+@dataclass
+class Vertex:
+    """Representation of a vertex in the overlay of two planar subdivisions."""
+
+    vertex: str
+    coordinates: tuple[float, float]
+    incident_edge: _Edge
+
+    @property
+    def x(self) -> float:
+        return self.coordinates[0]
+
+    @property
+    def y(self) -> float:
+        return self.coordinates[1]
+
+
+@dataclass
+class Edge:
+    """Representation of an edge in the overlay of two planar subdivisions."""
+
+    edge: str
+    origin: Vertex
+    twin: _Edge
+    incident_face: Face
+    next: _Edge
+    prev: _Edge
+    incident_segment: Segment

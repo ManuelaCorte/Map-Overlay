@@ -1,6 +1,6 @@
 from pprint import pprint
 from src.data import read_intersection_data, plot_intersections
-from src.intersection import SweepLineIntersection
+from src.algorithms import SweepLineIntersection
 
 if __name__ == "__main__":
     segments, num_intersections = read_intersection_data(

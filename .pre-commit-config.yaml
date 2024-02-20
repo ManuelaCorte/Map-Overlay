@@ -10,6 +10,7 @@ repos:
       - id: requirements-txt-fixer
       - id: check-yaml
       - id: check-added-large-files
+        args: [--maxkb=1000000]
       - id: check-json
 
   - repo: https://github.com/astral-sh/ruff-pre-commit

@@ -1,7 +1,8 @@
+import json
 from typing import Optional
-from src.structs import Segment, Point
+from src.structs import Segment, Point, Features
 from random import random
-from src.intersection import naive_intersection
+from src.algorithms import naive_intersection
 
 
 def read_intersection_data(path: str) -> tuple[list[Segment], int]:
@@ -46,7 +47,7 @@ def read_intersection_data(path: str) -> tuple[list[Segment], int]:
     return segments, num_intersections
 
 
-def generate_random_data(
+def generate_random_intersection_data(
     num_segments: int, max_x: float, max_y: float, path: Optional[str] = None
 ) -> tuple[list[Segment], int]:
     """Generate random segments fbetween 0 and the max coordinates sepcified for testing purposes.
@@ -76,3 +77,45 @@ def generate_random_data(
                     f"{segment.p1.x} {segment.p1.y} {segment.p2.x} {segment.p2.y}\n"
                 )
     return segments, num_intersections
+
+
+def read_geojson_file(path: str) -> list[Features]:
+    """Read the features contained in a geojson file. The file is expected to have the following format:
+    {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [
+                        [
+                            [x11, y11],
+                            [x12, y12],
+                            ...
+                        ]
+                    ]
+                },
+                "properties": {}
+            },
+            ...
+        ]
+    }
+
+    Params:
+    -   path - The path to the file
+
+    Returns:
+        A list of Features objects
+    """
+
+    data: list[Features] = []
+    with open(path, "r") as f:
+        for feature in json.load(f)["features"]:
+            data.append(Features.from_json(feature))
+    print(data)
+    return data
+
+
+if __name__ == "__main__":
+    read_geojson_file("data/overlays/simple")

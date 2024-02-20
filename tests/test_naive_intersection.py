@@ -1,6 +1,6 @@
 import os
 from src.data import read_intersection_data
-from src.intersection import naive_intersection
+from src.algorithms import naive_intersection
 
 
 # Test files were taken from: https://github.com/the-hyp0cr1t3/sweepline-intersections
