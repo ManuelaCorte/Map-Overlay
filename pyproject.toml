@@ -8,6 +8,7 @@ readme = "README.md"
 [tool.poetry.dependencies]
 python = "^3.12"
 matplotlib = "^3.8.3"
+graphviz = "^0.20.1"
 
 
 [tool.poetry.group.dev.dependencies]
@@ -28,6 +29,7 @@ typeCheckingMode = "strict"
 reportUnknownMemberType = false
 reportUnknownVariableType = false
 reportUnknownArgumentType = false
+reportMissingTypeStubs = false
 
 [build-system]
 requires = ["poetry-core"]
