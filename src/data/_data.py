@@ -1,8 +1,4 @@
-import json
-from typing import Optional
-from src.structs import Segment, Point, Features
-from random import random
-from src.algorithms import naive_intersection
+from src.structs import Segment, Point
 
 
 def read_intersection_data(path: str) -> tuple[list[Segment], int]:
@@ -42,80 +38,14 @@ def read_intersection_data(path: str) -> tuple[list[Segment], int]:
                 continue
 
             x1, y1, x2, y2 = map(float, line.split())
-            segments.append(Segment(Point(x1, y1), Point(x2, y2)))
+            p1 = Point(x1, y1)
+            p2 = Point(x2, y2)
+            segment = Segment(p1, p2)
+
+            # Degenerate cases with duplicate and overlapping segments
+            if p1 == p2 or segment in segments:
+                continue
+
+            segments.append(segment)
 
     return segments, num_intersections
-
-
-def generate_random_intersection_data(
-    num_segments: int, max_x: float, max_y: float, path: Optional[str] = None
-) -> tuple[list[Segment], int]:
-    """Generate random segments fbetween 0 and the max coordinates sepcified for testing purposes.
-
-    Params:
-    -   num_segments - The number of segments to generate
-    -   max_x - The maximum x coordinate for the segments
-    -   max_y - The maximum y coordinate for the segments
-    -   path - If specified, the path to save the generated segments and intersections
-
-    Returns:
-        A tuple containing the list of segments and the number of intersections
-    """
-    segments: list[Segment] = []
-    for _ in range(num_segments):
-        x1, y1 = random() * max_x, random() * max_y
-        x2, y2 = random() * max_x, random() * max_y
-        segments.append(Segment(Point(x1, y1), Point(x2, y2)))
-
-    num_intersections = len(naive_intersection(segments))
-
-    if path:
-        with open(path, "w") as f:
-            f.write(f"{num_intersections}\n")
-            for segment in segments:
-                f.write(
-                    f"{segment.p1.x} {segment.p1.y} {segment.p2.x} {segment.p2.y}\n"
-                )
-    return segments, num_intersections
-
-
-def read_geojson_file(path: str) -> list[Features]:
-    """Read the features contained in a geojson file. The file is expected to have the following format:
-    {
-        "type": "FeatureCollection",
-        "features": [
-            {
-                "type": "Feature",
-                "geometry": {
-                    "type": "Polygon",
-                    "coordinates": [
-                        [
-                            [x11, y11],
-                            [x12, y12],
-                            ...
-                        ]
-                    ]
-                },
-                "properties": {}
-            },
-            ...
-        ]
-    }
-
-    Params:
-    -   path - The path to the file
-
-    Returns:
-        A list of Features objects
-    """
-
-    data: list[Features] = []
-    with open(path, "r") as f:
-        for feature in json.load(f)["features"]:
-            data.append(Features.from_json(feature))
-    print(data)
-    return data
-
-
-if __name__ == "__main__":
-    read_geojson_file("data/overlays/simple")

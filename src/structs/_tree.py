@@ -3,7 +3,7 @@
 from enum import Enum
 from typing import Generic, Iterator, Optional, TypeVar
 
-from ._overlay import EventPoint
+from ._intersection import EventPoint
 
 
 class Color(Enum):

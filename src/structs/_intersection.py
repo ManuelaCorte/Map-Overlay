@@ -1,9 +1,11 @@
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional, TypeAlias
+from typing import Optional
+
 from ._constants import EPS
 from ._geometry import Point, Segment, Line
 from functools import total_ordering
+from src.utils import ClassesComparisonError
 
 
 #########################################
@@ -15,7 +17,7 @@ class EventType(Enum):
     END = 3
 
 
-@dataclass
+@dataclass(frozen=True)
 @total_ordering
 class EventPoint:
     """Event point for the sweep line algorithm. Event points are ordered by their y
@@ -28,7 +30,9 @@ class EventPoint:
 
     def __eq__(self, __value: object) -> bool:
         if not isinstance(__value, EventPoint):
-            raise ValueError("Cannot compare EventPoint with non-EventPoint")
+            raise ClassesComparisonError(
+                "Cannot compare EventPoint with non-EventPoint"
+            )
         return self.point == __value.point
 
     def __hash__(self) -> int:
@@ -36,7 +40,9 @@ class EventPoint:
 
     def __lt__(self, __value: object) -> bool:
         if not isinstance(__value, EventPoint):
-            raise ValueError("Cannot compare EventPoint with non-EventPoint")
+            raise ClassesComparisonError(
+                "Cannot compare EventPoint with non-EventPoint"
+            )
 
         if abs(self.point.y - __value.point.y) < EPS:
             return self.point.x > __value.point.x
@@ -72,7 +78,7 @@ class Status:
         return self.status[index]
 
     def __setitem__(self, index: int, value: Segment) -> None:
-        raise ValueError("Cannot set items in the sweep line")
+        raise ClassesComparisonError("Cannot set items in the sweep line")
 
     def __len__(self) -> int:
         return len(self.status)
@@ -113,7 +119,7 @@ class Status:
 
     def index(self, segment: Segment) -> int:
         """Return the index of a segment in the sweep line. If the segment is not in the sweep line,
-        a ValueError is raised.
+        a ClassesComparisonError is raised.
 
         Params:
         - segment: Segment: The segment to find in the sweep line
@@ -229,48 +235,3 @@ class Status:
             j += 1
 
         return new_list
-
-
-#########################################
-# Overlay data structures
-#########################################
-_Edge: TypeAlias = "Edge"
-
-
-@dataclass
-class Face:
-    """Representation of a face in the overlay of two planar subdivisions."""
-
-    face: str
-    outer_component: Optional[_Edge] = None
-    inner_components: Optional[list[_Edge]] = None
-
-
-@dataclass
-class Vertex:
-    """Representation of a vertex in the overlay of two planar subdivisions."""
-
-    vertex: str
-    coordinates: tuple[float, float]
-    incident_edge: _Edge
-
-    @property
-    def x(self) -> float:
-        return self.coordinates[0]
-
-    @property
-    def y(self) -> float:
-        return self.coordinates[1]
-
-
-@dataclass
-class Edge:
-    """Representation of an edge in the overlay of two planar subdivisions."""
-
-    edge: str
-    origin: Vertex
-    twin: _Edge
-    incident_face: Face
-    next: _Edge
-    prev: _Edge
-    incident_segment: Segment

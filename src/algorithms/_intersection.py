@@ -9,7 +9,7 @@ from src.structs import (
     EPS,
     Line,
 )
-from src.utils import lists_union
+from src.utils import lists_union, NotRunYetError, CollinearityError
 
 
 def naive_intersection(segments: list[Segment]) -> list[Point]:
@@ -18,10 +18,9 @@ def naive_intersection(segments: list[Segment]) -> list[Point]:
     intersections: list[Point] = []
     for i in range(len(segments)):
         for j in range(i + 1, len(segments)):
-            if segments[i].intersect(segments[j]):
-                intersection = segments[i].intersection(segments[j])
-                if intersection not in intersections:
-                    intersections.append(segments[i].intersection(segments[j]))
+            intersection = segments[i].intersection(segments[j])
+            if intersection is not None and intersection not in intersections:
+                intersections.append(intersection)
 
     return intersections
 
@@ -44,7 +43,7 @@ class SweepLineIntersection:
     @property
     def intersections(self) -> list[Point]:
         if not self._has_run:
-            raise ValueError("The algorithm has not been run yet")
+            raise NotRunYetError()
         return self._intersections
 
     def run(self) -> None:
@@ -77,6 +76,18 @@ class SweepLineIntersection:
                 lists_union(upper_endpoint_segments, lower_endpoint_segments),
                 contained_segments,
             )
+
+            for i in range(len(all_segments)):
+                for j in range(i + 1, len(all_segments)):
+                    if all_segments[i].is_collinear(all_segments[j]):
+                        shared_endpoint = all_segments[i].shared_endpoint(
+                            all_segments[j]
+                        )
+                        if shared_endpoint is None:
+                            raise CollinearityError(
+                                f"""The algorithm does not support collinear segments.
+                                Segment {all_segments[i]} and {all_segments[j]} are collinear."""
+                            )
             if len(all_segments) > 1:
                 self._intersections.append(event.point)
 
@@ -185,15 +196,17 @@ class SweepLineIntersection:
             return None
 
         intersection: Optional[Point] = None
-        if left_segment.intersect(right_segment):
-            intersection_point = left_segment.intersection(right_segment)
-            if intersection_point.y < sweep_line.q:
-                intersection = intersection_point
-            elif (
-                intersection_point.y == sweep_line.q
-                and intersection_point.x > event_point.x
-            ):
-                intersection = intersection_point
+        intersection_point = left_segment.intersection(right_segment)
+        if intersection_point is None:
+            return None
+
+        if intersection_point.y < sweep_line.q:
+            intersection = intersection_point
+        elif (
+            abs(intersection_point.y - sweep_line.q) < EPS
+            and intersection_point.x > event_point.x
+        ):
+            intersection = intersection_point
 
         if intersection is not None:
             existing_intersection = self._event_queue.search(
