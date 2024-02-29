@@ -11,3 +11,12 @@ def lists_union(list1: list[T], list2: list[T]) -> list[T]:
     - list1 - The first list
     - list2 - The second list"""
     return list(set(list1).union(set(list2)))
+
+
+def trunc_float(number: float, decimals: int) -> float:
+    """Truncate a float number to a given number of decimal places.
+
+    Params:
+    - number - The number to truncate
+    - decimals - The number of decimal places to keep"""
+    return int(number * 10**decimals) / 10**decimals

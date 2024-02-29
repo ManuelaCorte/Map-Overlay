@@ -22,24 +22,21 @@ class DoublyConnectedEdgeList:
         self._construct_dcel(features)
 
     def to_image(self, path: str) -> None:
-        dot = graphviz.Digraph(comment="Overlay DCEL")
-        for vertex in self._vertices.values():
+        dot = graphviz.Digraph(name="DCEL", format="png", engine="neato")
+        dot.attr(overlap="false")
+        for node in self._vertices.values():
             dot.node(
-                vertex.vertex.id,
-                f"({vertex.coordinates.x}, {vertex.coordinates.y})",
-                shape="point",
+                node.vertex.id,
+                label=node.vertex.id,
+                pos=f"{node.coordinates.x},{node.coordinates.y}",
             )
 
         for edge in self._edges.values():
-            dot.edge(
-                edge.origin.id,
-                edge.twin.id,
-                label=edge.edge.id,
-                dir="both",
-                arrowhead="none",
-            )
+            origin = self._vertices[edge.origin].vertex.id
+            destination = self._edges[edge.twin].origin.id
+            dot.edge(origin, destination)
 
-        dot.render(path, format="png")
+        dot.render(path, overwrite_source=True, cleanup=True)
 
     def _construct_dcel(self, features: list[Feature]) -> None:
         for feature in features:
@@ -62,39 +59,60 @@ class DoublyConnectedEdgeList:
         for i in range(n):
             origin = feature.geometry.outer[i]
             destination = feature.geometry.outer[(i + 1) % n]
-            boundary.append(self._construct_edge(origin, destination, face_id))
+            origin_point = Point(x=origin[0], y=origin[1])
+            destination_point = Point(x=destination[0], y=destination[1])
+            boundary.append(
+                self._construct_edge(origin_point, destination_point, face_id)
+            )
+
+        # Set the next and previous pointers for the boundary edges
+        for i in range(n):
+            self._connect_edges(boundary[i], boundary[(i + 1) % n])
 
         holes: list[EdgeId] = []
         for i, inner_ring in enumerate(feature.geometry.inner):
             hole_id = FaceId(id=f"f_{len(self._faces) +1 +i}")
             hole: list[EdgeId] = []
-            for i in range(len(inner_ring)):
+            m = len(inner_ring)
+            for i in range(m):
                 origin = inner_ring[i]
-                destination = inner_ring[(i + 1) % n]
-                hole.append(self._construct_edge(origin, destination, hole_id, face_id))
+                destination = inner_ring[(i + 1) % m]
+                origin_point = Point(x=origin[0], y=origin[1])
+                destination_point = Point(x=destination[0], y=destination[1])
+                hole.append(
+                    self._construct_edge(
+                        origin_point, destination_point, hole_id, face_id
+                    )
+                )
             holes.append(hole[0])
+
+            for i in range(m):
+                self._connect_edges(hole[i], hole[(i + 1) % m])
 
         face = Face(face_id, boundary[0], holes)
         self._faces[face_id] = face
 
     def _construct_edge(
         self,
-        origin: tuple[float, float],
-        destination: tuple[float, float],
+        origin_point: Point,
+        destination_point: Point,
         incident_face: FaceId,
         outer_face: Optional[FaceId] = None,
     ) -> EdgeId:
-        origin_point = Point(x=origin[0], y=origin[1])
-        destination_point = Point(x=destination[0], y=destination[1])
 
-        if self._points.get(origin_point) is not None:
-            origin_vertex_id = self._points[origin_point]
+        origin_vertex_id = VertexId.null()
+        destination_vertex_id = VertexId.null()
+
+        origin_vertex = self._points.get(origin_point)
+        if origin_vertex is not None:
+            origin_vertex_id = origin_vertex
         else:
             origin_vertex_id = VertexId(id=f"v_{len(self._points)}")
             self._points[origin_point] = origin_vertex_id
 
-        if self._points.get(destination_point) is not None:
-            destination_vertex_id = self._points[destination_point]
+        destination_vertices = self._points.get(destination_point)
+        if destination_vertices is not None:
+            destination_vertex_id = destination_vertices
         else:
             destination_vertex_id = VertexId(id=f"v_{len(self._points)}")
             self._points[destination_point] = destination_vertex_id
@@ -139,3 +157,7 @@ class DoublyConnectedEdgeList:
             self._edges[twin_edge_id] = twin_edge
 
         return incident_edge_id
+
+    def _connect_edges(self, edge1: EdgeId, edge2: EdgeId) -> None:
+        self._edges[edge1].next = edge2
+        self._edges[edge2].prev = edge1

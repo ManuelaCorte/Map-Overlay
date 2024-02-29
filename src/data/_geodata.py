@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 import json
 from typing import Any, Self
 from enum import Enum
+import matplotlib.pyplot as plt
 
 
 class GeometryType(Enum):
@@ -21,8 +22,7 @@ class Geometry(ABC):
 
     @classmethod
     @abstractmethod
-    def from_json(cls, data: dict[str, Any]) -> Self:
-        ...
+    def from_json(cls, data: dict[str, Any]) -> Self: ...
 
 
 @dataclass
@@ -59,9 +59,10 @@ class PolygonGeometry(Geometry):
 
     @classmethod
     def from_json(cls, data: dict[str, Any]) -> Self:
+        # We ignore the last point as it is the same as the first
         return cls(
-            outer=[(x, y) for x, y in data["coordinates"][0]],
-            inner=[[(x, y) for x, y in ring] for ring in data["coordinates"][1:]],
+            outer=[(x, y) for x, y in data["coordinates"][0][:-1]],
+            inner=[[(x, y) for x, y in ring] for ring in data["coordinates"][1:][:-1]],
         )
 
 
@@ -122,3 +123,24 @@ def read_geojson_file(path: str) -> list[Feature]:
         for feature in json.load(f)["features"]:
             data.append(Feature.from_json(feature))
     return data
+
+
+def plot_geojson(path: str) -> None:
+    _, ax = plt.subplots(figsize=(15, 10))
+
+    with open(path, "r") as f:
+        data = json.load(f)
+        for feature in data["features"]:
+            type = feature["geometry"]["type"]
+            if type == "Polygon":
+                for polygon in feature["geometry"]["coordinates"]:
+                    x, y = zip(*polygon)
+                    ax.plot(x, y)
+            elif type == "LineString":
+                x, y = zip(*feature["geometry"]["coordinates"])
+                ax.plot(x, y)
+            elif type == "Point":
+                x, y = feature["geometry"]["coordinates"]
+                ax.plot(x, y, "o")
+
+    plt.show()

@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Optional, Self
 from src.structs import Point
-from src.utils import ClassesComparisonError
+from src.utils import ClassComparisonError
 
 
 @dataclass(frozen=True)
@@ -25,6 +25,14 @@ class VertexId:
 
     def __hash__(self) -> int:
         return hash(self.id)
+    
+    def is_null(self) -> bool:
+        return self.id == "v_null"
+    
+    @classmethod
+    def null(cls) -> Self:
+        return cls(id="v_null")
+    
 
 
 @dataclass(frozen=True)
@@ -36,7 +44,7 @@ class EdgeId:
 
     @classmethod
     def from_vertices(cls, origin: VertexId, destination: VertexId) -> Self:
-        return cls(id=f"e_{origin.id.split("_"[1])}_{destination.id.split("_"[1])}")
+        return cls(id=f"e_{origin.id.split("_")[1]}_{destination.id.split("_")[1]}")
 
     def is_null(self) -> bool:
         return self.id == "e_null"
@@ -59,7 +67,7 @@ class Face:
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, Face):
-            raise ClassesComparisonError("Cannot compare Face with non-Face")
+            raise ClassComparisonError("Cannot compare Face with non-Face")
         return self.face.id == other.face.id
 
     def is_null(self) -> bool:
@@ -87,7 +95,7 @@ class Vertex:
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, Vertex):
-            raise ClassesComparisonError("Cannot compare Vertex with non-Vertex")
+            raise ClassComparisonError("Cannot compare Vertex with non-Vertex")
         return (
             self.vertex.id == other.vertex.id and self.coordinates == other.coordinates
         )
@@ -109,7 +117,7 @@ class Edge:
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, Edge):
-            raise ClassesComparisonError("Cannot compare Edge with non-Edge")
+            raise ClassComparisonError("Cannot compare Edge with non-Edge")
         return self.edge.id == other.edge.id
 
     def is_null(self) -> bool:

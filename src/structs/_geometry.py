@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 from typing import Optional, Self
 
-from ._constants import EPS
-from src.utils import ClassesComparisonError, CollinearityError
+from ._constants import EPS, SIGNIFICANT_DIGITS
+from src.utils import ClassComparisonError, CollinearityError, trunc_float
 
 
 @dataclass
@@ -14,14 +14,19 @@ class Point:
 
     def __eq__(self, __value: object) -> bool:
         if not isinstance(__value, Point):
-            raise ClassesComparisonError("Cannot compare Point with non-Point")
+            raise ClassComparisonError("Cannot compare Point with non-Point")
         return abs(self.x - __value.x) < EPS and abs(self.y - __value.y) < EPS
 
     def __ne__(self, __value: object) -> bool:
         return not self.__eq__(__value)
 
     def __hash__(self) -> int:
-        return hash((round(self.x, 5), round(self.y)))
+        return hash(
+            (
+                trunc_float(self.x, SIGNIFICANT_DIGITS),
+                trunc_float(self.y, SIGNIFICANT_DIGITS),
+            )
+        )
 
     def __repr__(self) -> str:
         return f"Point({self.x}, {self.y})"
@@ -37,7 +42,7 @@ class Line:
 
     def __eq__(self, __value: object) -> bool:
         if not isinstance(__value, Line):
-            raise ClassesComparisonError("Cannot compare Line with non-Line")
+            raise ClassComparisonError("Cannot compare Line with non-Line")
         return abs(self.m - __value.m) < EPS and abs(self.q - __value.q) < EPS
 
     def __hash__(self) -> int:
@@ -59,12 +64,6 @@ class Line:
     def is_collinear(self, other: Self) -> bool:
         """Check if two lines are collinear (they're parallel and lie on the same line)"""
         return abs(self.m - other.m) < EPS and abs(self.q - other.q) < EPS
-
-    # def intersect(self, other: Self) -> bool:
-    #     """Check if two lines intersect"""
-    #     if self.m == other.m and self.q == other.q:
-    #         print("Lines are the same")
-    #     return self.m != other.m
 
     def intersection(self, other: Self) -> Optional[Point]:
         """Calculate the intersection point of two lines. If the two lines overlap then
@@ -119,7 +118,7 @@ class Segment:
 
     def __eq__(self, __value: object) -> bool:
         if not isinstance(__value, Segment):
-            raise ClassesComparisonError("Cannot compare Segment with non-Segment")
+            raise ClassComparisonError("Cannot compare Segment with non-Segment")
         return (self.p1 == __value.p1 and self.p2 == __value.p2) or (
             self.p1 == __value.p2 and self.p2 == __value.p1
         )
@@ -214,18 +213,6 @@ class Segment:
         if self.p2 == other.p1 or self.p2 == other.p2:
             return self.p2
         return None
-
-    # def intersect(self, other: Self) -> bool:
-    #     """Check if two segments intersect"""
-    #     if not self._line.intersect(other._line):
-    #         return False
-
-    #     # check if the segments are collinear
-    #     if self.is_collinear(other):
-    #         raise ClassesComparisonError(f"Segments {self} and {other} are collinear")
-
-    #     line_intersection = self._line.intersection(other._line)
-    #     return self.contains(line_intersection) and other.contains(line_intersection)
 
     def intersection(self, other: Self) -> Optional[Point]:
         """Calculate the intersection point of two segments. Collinear segments that only share the

@@ -62,3 +62,10 @@ data/intersections/test_degenerate_zero_length_01.txt filter=lfs diff=lfs merge=
 data/intersections/test_isect_bowtie_circle_01.txt filter=lfs diff=lfs merge=lfs -text
 data/intersections/test_isect_crosshatch_01.txt filter=lfs diff=lfs merge=lfs -text
 data/intersections/test_isect_scatter_01.txt filter=lfs diff=lfs merge=lfs -text
+data/overlays/polygons.json filter=lfs diff=lfs merge=lfs -text
+data/overlays/rectangles.json filter=lfs diff=lfs merge=lfs -text
+data/overlays/simple.json filter=lfs diff=lfs merge=lfs -text
+data/overlays/state.json filter=lfs diff=lfs merge=lfs -text
+data/overlays/test.json filter=lfs diff=lfs merge=lfs -text
+data/overlays/grid.json filter=lfs diff=lfs merge=lfs -text
+data/overlays/imgs filter=lfs diff=lfs merge=lfs -text

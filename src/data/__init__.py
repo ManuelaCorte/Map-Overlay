@@ -1,6 +1,7 @@
 from ._data import read_intersection_data
 from ._geodata import (
     read_geojson_file,
+    plot_geojson,
     Feature,
     Geometry,
     GeometryType,
@@ -8,6 +9,7 @@ from ._geodata import (
     LineStringGeometry,
     PolygonGeometry,
 )
+from ._generate import generate_random_data
 from ._visualize import plot_intersections
 
 __all__ = [
@@ -20,4 +22,6 @@ __all__ = [
     "PointGeometry",
     "LineStringGeometry",
     "PolygonGeometry",
+    "generate_random_data",
+    "plot_geojson",
 ]

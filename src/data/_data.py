@@ -22,7 +22,7 @@ def read_intersection_data(path: str) -> tuple[list[Segment], int]:
     """
     segments: list[Segment] = []
     num_intersections: int = 0
-    with open(path, "r") as f:
+    with open(path, mode="r") as f:
         for i, line in enumerate(f):
             if len(line.split()) == 1:
                 if i == 0:

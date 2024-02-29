@@ -7,7 +7,7 @@ class CollinearityError(Exception):
         return self.message
 
 
-class ClassesComparisonError(Exception):
+class ClassComparisonError(Exception):
     def __init__(self, message: str = "The classes are different"):
         self.message = message
         super().__init__(self.message)

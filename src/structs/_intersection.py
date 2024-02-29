@@ -5,7 +5,7 @@ from typing import Optional
 from ._constants import EPS
 from ._geometry import Point, Segment, Line
 from functools import total_ordering
-from src.utils import ClassesComparisonError
+from src.utils import ClassComparisonError
 
 
 #########################################
@@ -30,9 +30,7 @@ class EventPoint:
 
     def __eq__(self, __value: object) -> bool:
         if not isinstance(__value, EventPoint):
-            raise ClassesComparisonError(
-                "Cannot compare EventPoint with non-EventPoint"
-            )
+            raise ClassComparisonError("Cannot compare EventPoint with non-EventPoint")
         return self.point == __value.point
 
     def __hash__(self) -> int:
@@ -40,9 +38,7 @@ class EventPoint:
 
     def __lt__(self, __value: object) -> bool:
         if not isinstance(__value, EventPoint):
-            raise ClassesComparisonError(
-                "Cannot compare EventPoint with non-EventPoint"
-            )
+            raise ClassComparisonError("Cannot compare EventPoint with non-EventPoint")
 
         if abs(self.point.y - __value.point.y) < EPS:
             return self.point.x > __value.point.x
@@ -78,7 +74,7 @@ class Status:
         return self.status[index]
 
     def __setitem__(self, index: int, value: Segment) -> None:
-        raise ClassesComparisonError("Cannot set items in the sweep line")
+        raise ClassComparisonError("Cannot set items in the sweep line")
 
     def __len__(self) -> int:
         return len(self.status)
