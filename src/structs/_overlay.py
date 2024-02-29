@@ -25,14 +25,13 @@ class VertexId:
 
     def __hash__(self) -> int:
         return hash(self.id)
-    
+
     def is_null(self) -> bool:
         return self.id == "v_null"
-    
+
     @classmethod
     def null(cls) -> Self:
         return cls(id="v_null")
-    
 
 
 @dataclass(frozen=True)

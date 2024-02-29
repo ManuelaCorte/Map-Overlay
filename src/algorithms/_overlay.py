@@ -99,7 +99,6 @@ class DoublyConnectedEdgeList:
         incident_face: FaceId,
         outer_face: Optional[FaceId] = None,
     ) -> EdgeId:
-
         origin_vertex_id = VertexId.null()
         destination_vertex_id = VertexId.null()
 

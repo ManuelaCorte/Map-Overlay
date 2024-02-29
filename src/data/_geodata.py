@@ -22,7 +22,8 @@ class Geometry(ABC):
 
     @classmethod
     @abstractmethod
-    def from_json(cls, data: dict[str, Any]) -> Self: ...
+    def from_json(cls, data: dict[str, Any]) -> Self:
+        ...
 
 
 @dataclass
