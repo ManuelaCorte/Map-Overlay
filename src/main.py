@@ -1,5 +1,5 @@
 from src.data import read_geojson_file, plot_geojson
-from src.algorithms import (
+from src.structs import (
     DoublyConnectedEdgeList,
 )
 

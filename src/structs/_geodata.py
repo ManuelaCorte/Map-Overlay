@@ -1,9 +1,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-import json
 from typing import Any, Self
 from enum import Enum
-import matplotlib.pyplot as plt
 
 
 class GeometryType(Enum):
@@ -22,8 +20,7 @@ class Geometry(ABC):
 
     @classmethod
     @abstractmethod
-    def from_json(cls, data: dict[str, Any]) -> Self:
-        ...
+    def from_json(cls, data: dict[str, Any]) -> Self: ...
 
 
 @dataclass
@@ -87,61 +84,3 @@ class Feature:
                 geometry = PolygonGeometry.from_json(data["geometry"])
 
         return cls(geometry=geometry, properties=data["properties"])
-
-
-def read_geojson_file(path: str) -> list[Feature]:
-    """Read the features contained in a geojson file. The file is expected to have the following format:
-    {
-        "type": "FeatureCollection",
-        "features": [
-            {
-                "type": "Feature",
-                "geometry": {
-                    "type": "Polygon",
-                    "coordinates": [
-                        [
-                            [x11, y11],
-                            [x12, y12],
-                            ...
-                        ]
-                    ]
-                },
-                "properties": {}
-            },
-            ...
-        ]
-    }
-
-    Params:
-    -   path - The path to the file
-
-    Returns:
-        A list of Features objects
-    """
-
-    data: list[Feature] = []
-    with open(path, "r") as f:
-        for feature in json.load(f)["features"]:
-            data.append(Feature.from_json(feature))
-    return data
-
-
-def plot_geojson(path: str) -> None:
-    _, ax = plt.subplots(figsize=(15, 10))
-
-    with open(path, "r") as f:
-        data = json.load(f)
-        for feature in data["features"]:
-            type = feature["geometry"]["type"]
-            if type == "Polygon":
-                for polygon in feature["geometry"]["coordinates"]:
-                    x, y = zip(*polygon)
-                    ax.plot(x, y)
-            elif type == "LineString":
-                x, y = zip(*feature["geometry"]["coordinates"])
-                ax.plot(x, y)
-            elif type == "Point":
-                x, y = feature["geometry"]["coordinates"]
-                ax.plot(x, y, "o")
-
-    plt.show()

@@ -1,4 +1,5 @@
-from src.structs import Segment, Point
+import json
+from src.structs import Segment, Point, Feature
 
 
 def read_intersection_data(path: str) -> tuple[list[Segment], int]:
@@ -49,3 +50,40 @@ def read_intersection_data(path: str) -> tuple[list[Segment], int]:
             segments.append(segment)
 
     return segments, num_intersections
+
+
+def read_geojson_file(path: str) -> list[Feature]:
+    """Read the features contained in a geojson file. The file is expected to have the following format:
+    {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [
+                        [
+                            [x11, y11],
+                            [x12, y12],
+                            ...
+                        ]
+                    ]
+                },
+                "properties": {}
+            },
+            ...
+        ]
+    }
+
+    Params:
+    -   path - The path to the file
+
+    Returns:
+        A list of Features objects
+    """
+
+    data: list[Feature] = []
+    with open(path, "r") as f:
+        for feature in json.load(f)["features"]:
+            data.append(Feature.from_json(feature))
+    return data
