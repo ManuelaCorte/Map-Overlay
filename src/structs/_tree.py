@@ -471,6 +471,7 @@ class NullNode(Node[Value]):
         self.left: Node[Value]
         self.right: Node[Value]
         self._value: Value
+        self._color = Color.BLACK
 
     def __repr__(self) -> str:
         return "NullNode"

@@ -4,9 +4,10 @@ from src.structs import (
 )
 
 if __name__ == "__main__":
-    features = read_geojson_file("data/overlays/grid.json")
+    file = "rectangles"
+    features = read_geojson_file(f"data/overlays/{file}.json")
     plot_geojson(
-        "data/overlays/grid.json",
+        f"data/overlays/{file}.json",
     )
-    dcel = DoublyConnectedEdgeList(features)
-    dcel.to_image("data/overlays/imgs/grid")
+    dcel = DoublyConnectedEdgeList.from_features(features)
+    dcel.to_image(f"data/overlays/imgs/{file}")

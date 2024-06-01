@@ -23,3 +23,12 @@ class NotRunYetError(Exception):
 
     def __str__(self) -> str:
         return self.message
+
+
+class DcelError(Exception):
+    def __init__(self, message: str = "The DCEL is not valid"):
+        self.message = message
+        super().__init__(self.message)
+
+    def __str__(self) -> str:
+        return self.message
