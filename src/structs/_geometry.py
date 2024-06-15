@@ -31,6 +31,9 @@ class Point:
     def __repr__(self) -> str:
         return f"Point({self.x}, {self.y})"
 
+    def __iter__(self):
+        return iter((self.x, self.y))
+
 
 @dataclass(frozen=True)
 class Line:
