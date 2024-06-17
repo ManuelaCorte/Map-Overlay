@@ -1,3 +1,3 @@
-from ._intersection import SweepLineIntersection, naive_intersection
+from ._intersection import sweep_line_intersection, naive_intersection
 
-__all__ = ["SweepLineIntersection", "naive_intersection"]
+__all__ = ["sweep_line_intersection", "naive_intersection"]

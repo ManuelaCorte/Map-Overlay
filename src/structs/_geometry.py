@@ -114,10 +114,11 @@ class Segment:
     """A line segment in 2d space, represented by two points. Two segments are considered equal if their endpoints are
     equal."""
 
-    def __init__(self, p1: Point, p2: Point) -> None:
+    def __init__(self, p1: Point, p2: Point, id: str = "") -> None:
         self.p1 = p1
         self.p2 = p2
         self._line = Line.from_points(p1, p2)
+        self.id = id
 
     def __eq__(self, __value: object) -> bool:
         if not isinstance(__value, Segment):
