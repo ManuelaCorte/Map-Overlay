@@ -87,3 +87,40 @@ def read_geojson_file(path: str) -> list[Feature]:
         for feature in json.load(f)["features"]:
             data.append(Feature.from_json(feature))
     return data
+
+
+def read_overlay_data(path: str) -> list[list[Segment]]:
+    """Read the segments contained in a file. The file is expected to have the following format:
+    <x11> <y11> <x12> <y12>
+
+    ...
+
+    <xN1> <yN1> <xN2> <yN2>
+
+    <x11> <y11> <x12> <y12>
+
+    ...
+
+    <xM1> <yM1> <xM2> <yM2>
+
+    Where the different faces are separated by an empty line, and each line represents a segment with its two endpoints.
+    Params:
+    -   path - The path to the file
+
+    Returns:
+        A tuple containing the list of segments divided by faces
+    """
+    segments: list[list[Segment]] = []
+    face_segments: list[Segment] = []
+    with open(path, mode="r") as f:
+        for line in f.readlines():
+            if line.strip() == "":
+                segments.append(face_segments)
+                face_segments = []
+            else:
+                x1, y1, x2, y2 = map(float, line.split())
+                p1 = Point(x1, y1)
+                p2 = Point(x2, y2)
+                face_segments.append(Segment(p1, p2))
+    segments.append(face_segments)
+    return segments
