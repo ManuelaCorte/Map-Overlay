@@ -46,7 +46,7 @@ def plot_geojson(path: str) -> None:
     plt.show()
 
 
-def plot_overlay(overlay: list[list[Segment]]):
+def plot_overlay(overlay: list[list[tuple[Point, Point]]]):
     """
     Plot the segments and their intersections
 
@@ -56,14 +56,16 @@ def plot_overlay(overlay: list[list[Segment]]):
 
     colors = plt.cm.rainbow(np.linspace(0, 1, len(overlay)))  # type: ignore
     for face, color in zip(overlay, colors, strict=True):
-        x = []
-        y = []
-        for segment in face:
-            x.append(segment.p1.x)
-            y.append(segment.p1.y)
+        x: list[float] = []
+        y: list[float] = []
+        for p1, p2 in face:
+            x.append(p1.x)
+            y.append(p1.y)
+            x.append(p2.x)
+            y.append(p2.y)
             ax.plot(
-                [segment.p1.x, segment.p2.x],
-                [segment.p1.y, segment.p2.y],
+                [p1.x, p2.x],
+                [p1.y, p2.y],
                 marker=".",
                 color="black",
                 linewidth=1,

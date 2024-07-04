@@ -188,34 +188,30 @@ class DoublyConnectedEdgeList:
         polygons_list: list[list[tuple[Point, Point]]],
         prefix: str = "dcel",
     ) -> None:
-        self._faces: dict[FaceId, Face] = {}
-        self._edges: dict[EdgeId, Edge] = {}
-        self._vertices: dict[VertexId, Vertex] = {}
-        self._points: dict[Point, VertexId] = {}
-        self._prefix = prefix
+        self.faces: dict[FaceId, Face] = {}
+        self.edges: dict[EdgeId, Edge] = {}
+        self.vertices: dict[VertexId, Vertex] = {}
+        self.points: dict[Point, VertexId] = {}
+        self.prefix = prefix
 
         if len(polygons_list) > 0:
             self._build_dcel(polygons_list)
 
     @property
-    def faces(self) -> dict[FaceId, Face]:
-        return self._faces
-
-    @property
-    def edges(self) -> dict[EdgeId, Edge]:
-        return self._edges
-
-    @property
-    def vertices(self) -> dict[VertexId, Vertex]:
-        return self._vertices
-
-    @property
-    def points(self) -> dict[Point, VertexId]:
-        return self._points
-
-    @property
-    def prefix(self) -> str:
-        return self._prefix
+    def segments(self) -> list[list[tuple[Point, Point]]]:
+        segments = []
+        for face in self.faces.values():
+            if face.is_external:
+                continue
+            boundary = self.boundary(face.outer_component)
+            face_segments = []
+            for edge_id in boundary:
+                edge = self.edges[edge_id]
+                origin = self.vertices[edge.origin].coordinates
+                destination = self.vertices[self.edges[edge.next].origin].coordinates
+                face_segments.append((origin, destination))
+            segments.append(face_segments)
+        return segments
 
     @classmethod
     def from_features(cls, features: list[Feature]) -> Self:
@@ -245,41 +241,41 @@ class DoublyConnectedEdgeList:
         return cls(polygons)
 
     def boundary(self, edge: EdgeId) -> list[EdgeId]:
-        next_edge = self._edges[edge].next
+        next_edge = self.edges[edge].next
         boundary = [edge]
         while next_edge != edge:
             boundary.append(next_edge)
-            next_edge = self._edges[next_edge].next
+            next_edge = self.edges[next_edge].next
         return boundary
 
     def to_image(self, path: str) -> None:
         dot = graphviz.Digraph(name="DCEL", format="png", engine="neato")
         dot.attr(overlap="false")
-        for node in self._vertices.values():
+        for node in self.vertices.values():
             dot.node(
                 node.id.id,
                 label=node.id.id,
                 pos=f"{node.coordinates.x},{node.coordinates.y}",
             )
 
-        for face in self._faces.values():
+        for face in self.faces.values():
             if face.is_external:
                 for inner_component in face.inner_components:
                     boundary = self.boundary(inner_component)
                     for edge_id in boundary:
-                        edge = self._edges[edge_id]
+                        edge = self.edges[edge_id]
                         dot.edge(
                             edge.origin.id,
-                            self._edges[edge.next].origin.id,
+                            self.edges[edge.next].origin.id,
                             label=edge.incident_face.id,
                         )
             else:
                 boundary = self.boundary(face.outer_component)
                 for edge_id in boundary:
-                    edge = self._edges[edge_id]
+                    edge = self.edges[edge_id]
                     dot.edge(
                         edge.origin.id,
-                        self._edges[edge.next].origin.id,
+                        self.edges[edge.next].origin.id,
                         label=edge.incident_face.id,
                     )
 
@@ -292,69 +288,10 @@ class DoublyConnectedEdgeList:
         edges: dict[EdgeId, Edge],
         faces: dict[FaceId, Face],
     ) -> None:
-        self._points = points
-        self._vertices = vertices
-        self._edges = edges
-        self._faces = faces
-
-    def split_edge(self, edge: Edge, intersection: Point) -> None:
-        # Create new vertex
-        vertex_id = VertexId(id=f"{self._prefix}_v_{len(self._vertices)}")
-        self._vertices[vertex_id] = Vertex(
-            id=vertex_id,
-            coordinates=intersection,
-            incident_edges=[],
-        )
-
-        # Create new edges
-        new_edge_id = EdgeId.from_vertices(
-            self._points[intersection],
-            self._edges[edge.twin].origin,
-            self._prefix,
-        )
-        new_twin_id = EdgeId.from_vertices(
-            self._edges[edge.twin].origin,
-            self._points[intersection],
-            self._prefix,
-        )
-
-        self._edges[new_edge_id] = Edge(
-            id=new_edge_id,
-            origin=vertex_id,
-            twin=new_twin_id,
-            incident_face=FaceId.null(),
-            next=edge.twin,
-            prev=edge.id,
-        )
-        self._vertices[vertex_id].add_incident_edge(new_edge_id)
-
-        self._edges[new_twin_id] = Edge(
-            id=new_twin_id,
-            origin=self._edges[edge.twin].origin,
-            twin=new_edge_id,
-            incident_face=FaceId.null(),
-            next=self._edges[edge.twin].next,
-            prev=self._edges[edge.twin].prev,
-        )
-        self._vertices[self._edges[edge.twin].origin].add_incident_edge(new_twin_id)
-
-        self._edges[edge.twin] = Edge(
-            id=edge.twin,
-            origin=edge.origin,
-            twin=new_edge_id,
-            incident_face=edge.incident_face,
-            next=new_edge_id,
-            prev=edge.prev,
-        )
-
-        self._edges[edge.id] = Edge(
-            id=edge.id,
-            origin=edge.origin,
-            twin=new_twin_id,
-            incident_face=edge.incident_face,
-            next=new_twin_id,
-            prev=edge.prev,
-        )
+        self.points = points
+        self.vertices = vertices
+        self.edges = edges
+        self.faces = faces
 
     ###############################
     ## Private methods
@@ -366,33 +303,33 @@ class DoublyConnectedEdgeList:
         # Create vertices
         for border in polygons:
             for origin, destination in border:
-                if origin not in self._points:
-                    vertex_id = VertexId(id=f"{self._prefix}_v_{len(self._vertices)}")
-                    self._vertices[vertex_id] = Vertex(
+                if origin not in self.points:
+                    vertex_id = VertexId(id=f"{self.prefix}_v_{len(self.vertices)}")
+                    self.vertices[vertex_id] = Vertex(
                         id=vertex_id,
                         coordinates=origin,
                         incident_edges=[],
                     )
-                    self._points[origin] = vertex_id
+                    self.points[origin] = vertex_id
 
-                if destination not in self._points:
-                    vertex_id = VertexId(id=f"{self._prefix}_v_{len(self._vertices)}")
-                    self._vertices[vertex_id] = Vertex(
+                if destination not in self.points:
+                    vertex_id = VertexId(id=f"{self.prefix}_v_{len(self.vertices)}")
+                    self.vertices[vertex_id] = Vertex(
                         id=vertex_id,
                         coordinates=destination,
                         incident_edges=[],
                     )
-                    self._points[destination] = vertex_id
+                    self.points[destination] = vertex_id
 
         # Create edges
         for _, border in enumerate(polygons):
             for origin, destination in border:
-                origin_id = self._points[origin]
-                destination_id = self._points[destination]
-                edge_id = EdgeId.from_vertices(origin_id, destination_id, self._prefix)
-                twin_id = EdgeId.from_vertices(destination_id, origin_id, self._prefix)
+                origin_id = self.points[origin]
+                destination_id = self.points[destination]
+                edge_id = EdgeId.from_vertices(origin_id, destination_id, self.prefix)
+                twin_id = EdgeId.from_vertices(destination_id, origin_id, self.prefix)
 
-                self._edges[edge_id] = Edge(
+                self.edges[edge_id] = Edge(
                     id=edge_id,
                     origin=origin_id,
                     twin=twin_id,
@@ -400,10 +337,10 @@ class DoublyConnectedEdgeList:
                     next=EdgeId.null(),
                     prev=EdgeId.null(),
                 )
-                self._vertices[origin_id].add_incident_edge(edge_id)
+                self.vertices[origin_id].add_incident_edge(edge_id)
 
-                if self._edges.get(twin_id) is None:
-                    self._edges[twin_id] = Edge(
+                if self.edges.get(twin_id) is None:
+                    self.edges[twin_id] = Edge(
                         id=twin_id,
                         origin=destination_id,
                         twin=edge_id,
@@ -411,29 +348,29 @@ class DoublyConnectedEdgeList:
                         next=EdgeId.null(),
                         prev=EdgeId.null(),
                     )
-                    self._vertices[destination_id].add_incident_edge(twin_id)
+                    self.vertices[destination_id].add_incident_edge(twin_id)
 
         # Connect edges
         for border in polygons:
             for i, (start, end) in enumerate(border):
                 border_len = len(border)
                 edge_id = EdgeId.from_vertices(
-                    self._points[start],
-                    self._points[end],
-                    self._prefix,
+                    self.points[start],
+                    self.points[end],
+                    self.prefix,
                 )
-                edge = self._edges[edge_id]
+                edge = self.edges[edge_id]
                 next_edge_id = EdgeId.from_vertices(
-                    self._points[end],
-                    self._points[border[(i + 1) % border_len][1]],
-                    self._prefix,
+                    self.points[end],
+                    self.points[border[(i + 1) % border_len][1]],
+                    self.prefix,
                 )
                 prev_edge_id = EdgeId.from_vertices(
-                    self._points[border[(i - 1 % border_len)][0]],
-                    self._points[start],
-                    self._prefix,
+                    self.points[border[(i - 1 % border_len)][0]],
+                    self.points[start],
+                    self.prefix,
                 )
-                self._edges[edge_id] = Edge(
+                self.edges[edge_id] = Edge(
                     id=edge_id,
                     origin=edge.origin,
                     twin=edge.twin,
@@ -442,19 +379,19 @@ class DoublyConnectedEdgeList:
                     prev=prev_edge_id,
                 )
 
-                twin_id = self._edges[edge_id].twin
-                twin = self._edges[twin_id]
+                twin_id = self.edges[edge_id].twin
+                twin = self.edges[twin_id]
                 next_twin_id = EdgeId.from_vertices(
-                    self._points[start],
-                    self._points[border[(i - 1) % border_len][0]],
-                    self._prefix,
+                    self.points[start],
+                    self.points[border[(i - 1) % border_len][0]],
+                    self.prefix,
                 )
                 prev_twin_id = EdgeId.from_vertices(
-                    self._points[border[(i + 1) % border_len][1]],
-                    self._points[end],
-                    self._prefix,
+                    self.points[border[(i + 1) % border_len][1]],
+                    self.points[end],
+                    self.prefix,
                 )
-                self._edges[twin_id] = Edge(
+                self.edges[twin_id] = Edge(
                     id=twin_id,
                     origin=twin.origin,
                     twin=twin.twin,
@@ -464,18 +401,18 @@ class DoublyConnectedEdgeList:
                 )
 
         # Sort incident edges
-        for vertex in self._vertices.values():
-            self._vertices[vertex.id] = self._sort_incident_edges(vertex)
+        for vertex in self.vertices.values():
+            self.vertices[vertex.id] = self.sort_incident_edges(vertex)
 
-        for vertex in self._vertices.values():
+        for vertex in self.vertices.values():
             # For every pair of half-edges e1, e2 in clockwise order,
             # assign e1->twin->next = e2 and e2->prev = e1->twin.
             for i in range(len(vertex.incident_edges)):
                 e1 = vertex.incident_edges[i]
                 e2 = vertex.incident_edges[(i + 1) % len(vertex.incident_edges)]
 
-                e1_twin = self._edges[self._edges[e1].twin]
-                self._edges[e1_twin.id] = Edge(
+                e1_twin = self.edges[self.edges[e1].twin]
+                self.edges[e1_twin.id] = Edge(
                     id=e1_twin.id,
                     origin=e1_twin.origin,
                     twin=e1_twin.twin,
@@ -484,8 +421,8 @@ class DoublyConnectedEdgeList:
                     prev=e1_twin.prev,
                 )
 
-                e2_edge = self._edges[e2]
-                self._edges[e2] = Edge(
+                e2_edge = self.edges[e2]
+                self.edges[e2] = Edge(
                     id=e2,
                     origin=e2_edge.origin,
                     twin=e2_edge.twin,
@@ -495,18 +432,23 @@ class DoublyConnectedEdgeList:
                 )
 
         # for each cycle of half-edges, create a face
-        edges_copy = deepcopy(self._edges)
+        edges_copy = deepcopy(self.edges)
+        self.assign_faces(edges_copy)
+        # TODO: merge all external faces into one ?
+
+    def assign_faces(self, edges_copy: dict[EdgeId, Edge]) -> None:
+        # for each cycle of half-edges, create a face
         while edges_copy:
             edge = edges_copy.popitem()[1]
             if edge.incident_face.is_null():
-                face_id = FaceId(id=f"f_{len(self._faces)}")
+                face_id = FaceId(id=f"f_{len(self.faces)}")
                 face = Face(
                     id=face_id,
                     outer_component=edge.id,
                     inner_components=[],
                 )
-                self._faces[face_id] = face
-                self._edges[edge.id] = Edge(
+                self.faces[face_id] = face
+                self.edges[edge.id] = Edge(
                     id=edge.id,
                     origin=edge.origin,
                     twin=edge.twin,
@@ -515,9 +457,9 @@ class DoublyConnectedEdgeList:
                     prev=edge.prev,
                 )
 
-                next_edge = self._edges[edge.next]
+                next_edge = self.edges[edge.next]
                 while next_edge != edge:
-                    self._edges[next_edge.id] = Edge(
+                    self.edges[next_edge.id] = Edge(
                         id=next_edge.id,
                         origin=next_edge.origin,
                         twin=next_edge.twin,
@@ -526,31 +468,26 @@ class DoublyConnectedEdgeList:
                         prev=next_edge.prev,
                     )
                     edges_copy.pop(next_edge.id)
-                    next_edge = self._edges[next_edge.next]
+                    next_edge = self.edges[next_edge.next]
 
         # Find external face as the one with negative area
         external_face = None
-        for face in self._faces.values():
-            if self._area(face) < 0:
+        for face in self.faces.values():
+            if self._face_area(face) < 0:
                 external_face = deepcopy(face)
-                self._faces[external_face.id] = Face(
+                self.faces[external_face.id] = Face(
                     id=external_face.id,
                     outer_component=EdgeId.null(),
                     inner_components=[external_face.outer_component],
                 )
-                print(f"External face: {external_face.id}")
         if external_face is None:
             raise DcelError("No external face found")
 
-        # TODO: merge all external faces into one ?
-
-        print("DCEL created successfully")
-
-    def _sort_incident_edges(self, vertex: Vertex) -> Vertex:
+    def sort_incident_edges(self, vertex: Vertex) -> Vertex:
         # sort incident edges in counterclockwise order
         incident_edges = sorted(
             vertex.incident_edges,
-            key=lambda e: self._angle(self._edges[e]),
+            key=lambda e: self._angle(self.edges[e]),
             reverse=True,
         )
 
@@ -562,20 +499,20 @@ class DoublyConnectedEdgeList:
 
     def _angle(self, edge: Edge) -> float:
         # calculate angle between edge and x-axis in degrees
-        x1, y1 = self._vertices[edge.origin].coordinates
-        x2, y2 = self._vertices[self._edges[edge.twin].origin].coordinates
+        x1, y1 = self.vertices[edge.origin].coordinates
+        x2, y2 = self.vertices[self.edges[edge.twin].origin].coordinates
 
         angle = m.degrees(m.atan2(y2 - y1, x2 - x1))
         return angle if angle >= 0 else angle + 360
 
-    def _area(self, face: Face) -> float:
+    def _face_area(self, face: Face) -> float:
         # compute the signed area of a face
         area = 0
         perimeter = self.boundary(face.outer_component)
         for edge_id in perimeter:
-            edge = self._edges[edge_id]
-            origin = self._vertices[edge.origin].coordinates
-            destination = self._vertices[self._edges[edge.next].origin].coordinates
+            edge = self.edges[edge_id]
+            origin = self.vertices[edge.origin].coordinates
+            destination = self.vertices[self.edges[edge.next].origin].coordinates
             area += origin.x * destination.y - origin.y * destination.x
 
         return area / 2

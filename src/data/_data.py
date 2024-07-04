@@ -89,7 +89,7 @@ def read_geojson_file(path: str) -> list[Feature]:
     return data
 
 
-def read_overlay_data(path: str) -> list[list[Segment]]:
+def read_overlay_data(path: str) -> list[list[tuple[Point, Point]]]:
     """Read the segments contained in a file. The file is expected to have the following format:
     <x11> <y11> <x12> <y12>
 
@@ -108,10 +108,10 @@ def read_overlay_data(path: str) -> list[list[Segment]]:
     -   path - The path to the file
 
     Returns:
-        A tuple containing the list of segments divided by faces
+        A list of faces, where each face is a list of segments
     """
-    segments: list[list[Segment]] = []
-    face_segments: list[Segment] = []
+    segments: list[list[tuple[Point, Point]]] = []
+    face_segments: list[tuple[Point, Point]] = []
     with open(path, mode="r") as f:
         for line in f.readlines():
             if line.strip() == "":
@@ -121,6 +121,6 @@ def read_overlay_data(path: str) -> list[list[Segment]]:
                 x1, y1, x2, y2 = map(float, line.split())
                 p1 = Point(x1, y1)
                 p2 = Point(x2, y2)
-                face_segments.append(Segment(p1, p2))
+                face_segments.append((p1, p2))
     segments.append(face_segments)
     return segments
