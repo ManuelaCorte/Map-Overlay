@@ -1,15 +1,16 @@
 from typing import Optional
+
 from src.structs import (
-    Segment,
-    Point,
-    Status,
-    EventPoint,
-    RedBlackTree,
-    EventType,
     EPS,
+    EventPoint,
+    EventType,
     Line,
+    Point,
+    RedBlackTree,
+    Segment,
+    Status,
 )
-from src.utils import lists_union, CollinearityError
+from src.utils import CollinearityError, lists_union
 
 
 def naive_intersection(segments: list[Segment]) -> list[Point]:
@@ -25,12 +26,15 @@ def naive_intersection(segments: list[Segment]) -> list[Point]:
     return intersections
 
 
-def sweep_line_intersection(segments: list[Segment]) -> dict[Point, list[Segment]]:
+def sweep_line_intersection(
+    segments: list[Segment],
+) -> tuple[dict[Point, list[Segment]], dict[Segment, list[Point]]]:
     event_queue = _initialize_event_queue(segments)
     top_event_point = event_queue.maximum(event_queue.root).value.point
 
     status = Status([], Line(0, top_event_point.y + 1))
     intersections: dict[Point, list[Segment]] = {}
+    splitted_segments: dict[Segment, list[Point]] = {}
 
     while not event_queue.is_empty:
         event: EventPoint = event_queue.maximum(event_queue.root).value
@@ -72,6 +76,10 @@ def sweep_line_intersection(segments: list[Segment]) -> dict[Point, list[Segment
                         )
         if len(all_segments) > 1:
             intersections[event.point] = all_segments
+            for segment in all_segments:
+                if segment not in splitted_segments:
+                    splitted_segments[segment] = []
+                splitted_segments[segment].append(event.point)
 
         status.remove(lists_union(contained_segments, lower_endpoint_segments))
         status.add(
@@ -137,7 +145,7 @@ def sweep_line_intersection(segments: list[Segment]) -> dict[Point, list[Segment
                 if new_event is not None:
                     event_queue.insert(new_event)
 
-    return intersections
+    return intersections, splitted_segments
 
 
 def _initialize_event_queue(segments: list[Segment]) -> RedBlackTree[EventPoint]:

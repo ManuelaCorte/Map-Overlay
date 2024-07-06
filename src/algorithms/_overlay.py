@@ -1,17 +1,19 @@
 from copy import deepcopy
+
 from src.structs import (
     DoublyConnectedEdgeList,
-    Segment,
-    Point,
-    VertexId,
-    EdgeId,
-    FaceId,
-    Vertex,
     Edge,
+    EdgeId,
     Face,
+    FaceId,
+    Point,
+    Segment,
+    Vertex,
+    VertexId,
 )
-from ._intersection import sweep_line_intersection
 from src.utils import DcelError
+
+from ._intersection import sweep_line_intersection
 
 
 def overlay(
@@ -20,82 +22,73 @@ def overlay(
     """Compute the overlay of two doubly connected edge lists."""
     dcel = _merge(s1, s2)
 
-    segments: list[Segment] = []
-    for edge_id, edge in dcel.edges.items():
-        cw_prev = dcel.edges[edge.twin]
+    segments: set[Segment] = set()
+    for _, edge in dcel.edges.items():
+        # Add the segments to the list so that they're ordered by y
+        twin = dcel.edges[edge.twin]
         origin = dcel.vertices[edge.origin].coordinates
-        destination = dcel.vertices[cw_prev.origin].coordinates
-        segments.append(Segment(origin, destination, edge_id.id))
+        destination = dcel.vertices[twin.origin].coordinates
+        segment = Segment(
+            Point(origin.x, origin.y), Point(destination.x, destination.y)
+        )
+        p1, p2 = segment.order_by_y()
+        new_id = EdgeId.from_vertices(
+            dcel.points[p1],
+            dcel.points[p2],
+            edge.id.prefix,
+        )
+        segments.add(Segment(p1, p2, new_id.id))
 
-    intersections = sweep_line_intersection(segments)
-    edges_to_remove: list[EdgeId] = []
+    intersections, splitted_segments = sweep_line_intersection(list(segments))
+
+    # Add new vertices for the intersection points
+    for intersection_point in intersections.keys():
+        if intersection_point not in dcel.points:
+            vertex_id = VertexId(f"{dcel.prefix}_v_{len(dcel.vertices)}")
+            dcel.points[intersection_point] = vertex_id
+            dcel.vertices[vertex_id] = Vertex(vertex_id, intersection_point, [])
+
+    splitted_edges: dict[EdgeId, list[tuple[EdgeId, EdgeId]]] = (
+        _split_segments_into_edges(dcel, splitted_segments)
+    )
+
+    # Remove the original edges and add the new ones
+    for original_edge, new_edges in splitted_edges.items():
+        _update_original_edge(dcel, original_edge, new_edges)
+
     for intersection_point, intersecting_segments in intersections.items():
-        num_segments = len(intersecting_segments)
-        intersecting_edges = [
-            dcel.edges[EdgeId(segment.id)] for segment in intersecting_segments
-        ]
-        # for now we consider the simple case where only two segments intersect
-        if num_segments != 2:
-            print(intersection_point)
-            print(intersecting_segments)
-
-            raise NotImplementedError(
-                "The algorithm only supports the case where two segments intersect"
+        # check if the all intersecting segments belong to the same overlay
+        intersecting_overlays = (
+            len(
+                set(
+                    map(lambda segment: segment.id.split("_")[0], intersecting_segments)
+                )
             )
-        edge1 = intersecting_edges[0]
-        edge2 = intersecting_edges[1]
-        if edge1.same_dcel(edge2):
+            > 1
+        )
+        if not intersecting_overlays:
             continue
 
-        edges_to_remove.append(edge1.id)
-        edges_to_remove.append(edge2.id)
-        edges_to_remove.append(edge1.twin)
-        edges_to_remove.append(edge2.twin)
-
-        # create a new vertex at the intersection point
-        vertex_id = VertexId(f"{dcel.prefix}_v_{len(dcel.vertices)}")
-        dcel.points[intersection_point] = vertex_id
-        dcel.vertices[vertex_id] = Vertex(vertex_id, intersection_point, [])
-
-        # create new edges and update predecessors and successors
-        e1, e2 = _split_edge_at_intersection(dcel, edge1, vertex_id)
-        dcel.vertices[vertex_id].incident_edges.extend([e1, e2])
-        e1, e2 = _split_edge_at_intersection(dcel, edge2, vertex_id)
-        dcel.vertices[vertex_id].incident_edges.extend([e1, e2])
-
-        # update intersection point incident edges
-        intersection_vertex = dcel.sort_incident_edges(dcel.vertices[vertex_id])
-        dcel.vertices[vertex_id] = intersection_vertex
-        for i, edge_id in enumerate(intersection_vertex.incident_edges):
-            edge = dcel.edges[edge_id]
-            cw_prev = dcel.edges[
-                dcel.edges[
-                    intersection_vertex.incident_edges[
-                        (i - 1) % len(intersection_vertex.incident_edges)
-                    ]
-                ].twin
-            ]
-            dcel.edges[edge_id] = Edge(
-                edge.id,
-                edge.origin,
-                edge.twin,
-                edge.incident_face,
-                edge.next,
-                cw_prev.id,
+        # check if the intersection point is an endpoint for all the intersecting segments
+        intersection_at_endpoint = map(
+            lambda segment: segment.p1 == intersection_point
+            or segment.p2 == intersection_point,
+            intersecting_segments,
+        )
+        if all(intersection_at_endpoint):
+            intersection_vertex = dcel.vertices[dcel.points[intersection_point]]
+            sorted_edges = dcel.sort_incident_edges(intersection_vertex.incident_edges)
+            dcel.vertices[intersection_vertex.id] = Vertex(
+                intersection_vertex.id, intersection_vertex.coordinates, sorted_edges
             )
+            _update_intersection_incident_edges(dcel, intersection_vertex)
 
-            # update corresponding edge
-            dcel.edges[cw_prev.id] = Edge(
-                cw_prev.id,
-                cw_prev.origin,
-                cw_prev.twin,
-                cw_prev.incident_face,
-                edge_id,
-                cw_prev.prev,
-            )
+        if not all(intersection_at_endpoint):
+            # TODO: handle the case where the intersection is the enpoint only for
+            # the segments in one of the overlays
 
-    for edge_id in edges_to_remove:
-        del dcel.edges[edge_id]
+            intersection_vertex = dcel.vertices[dcel.points[intersection_point]]
+            _update_intersection_incident_edges(dcel, intersection_vertex)
 
     # update faces
     dcel.assign_faces(deepcopy(dcel.edges))
@@ -113,178 +106,314 @@ def _merge(
     dcel = DoublyConnectedEdgeList([])
     points: dict[Point, VertexId] = s1.points.copy()
     vertices: dict[VertexId, Vertex] = s1.vertices.copy()
-    edges: dict[EdgeId, Edge] = s1.edges.copy()
+    edges: dict[EdgeId, Edge] = {
+        edge_id: Edge(
+            edge.id, edge.origin, edge.twin, FaceId.null(), edge.next, edge.prev
+        )
+        for edge_id, edge in s1.edges.items()
+    }
     faces: dict[FaceId, Face] = {}
 
     for point, vertex_id in s2.points.items():
         if point not in points:
             points[point] = vertex_id
         else:
-            vertex = vertices[vertex_id]
-            # replace the vertex id in the edges
-            for edge_id in vertex.incident_edges:
-                edge_to_update = s2.edges[edge_id]
-                s2.edges[edge_id] = Edge(
-                    edge_to_update.id,
-                    vertex_id,
-                    edge_to_update.twin,
-                    edge_to_update.incident_face,
-                    edge_to_update.next,
-                    edge_to_update.prev,
-                )
-            del s2.vertices[vertex_id]
+            s1_vertex = vertices[points[point]]
+            s2_vertex = s2.vertices[vertex_id]
+            points[point] = s2_vertex.id
+            del vertices[s1_vertex.id]
 
-    points.update(s2.points)
-    vertices.update(s2.vertices)
-    edges.update(s2.edges)
-    dcel.update(points, vertices, edges, faces)
+            new_vertex = Vertex(
+                s2_vertex.id,
+                s2_vertex.coordinates,
+                s2_vertex.incident_edges,
+            )
+            # update incident edges of the vertices
+            for edge_id in s1_vertex.incident_edges:
+                edge = edges[edge_id]
+                edges[edge_id] = Edge(
+                    edge.id,
+                    s2_vertex.id,
+                    edge.twin,
+                    edge.incident_face,
+                    edge.next,
+                    edge.prev,
+                )
+            new_vertex.incident_edges.extend(s1_vertex.incident_edges)
+            vertices[s2_vertex.id] = new_vertex
+
+    for vertex_id, vertex in s2.vertices.items():
+        if vertex_id not in vertices:
+            vertices[vertex_id] = vertex
+
+    for edge_id, edge in s2.edges.items():
+        if edge_id not in edges:
+            edges[edge_id] = Edge(
+                edge.id,
+                edge.origin,
+                edge.twin,
+                FaceId.null(),
+                edge.next,
+                edge.prev,
+            )
+        else:
+            raise DcelError("The two DCELs have the same edge id")
+
+    dcel.populate(points, vertices, edges, faces)
     return dcel
 
 
-def _split_edge_at_intersection(
-    dcel: DoublyConnectedEdgeList,
-    edge: Edge,
-    intersection_vertex: VertexId,
-) -> tuple[EdgeId, EdgeId]:
-    """Split an edge into two separate edges with origin in the intersection point and destination in the original edge endpoints
+def _split_segments_into_edges(
+    dcel: DoublyConnectedEdgeList, splitted_segments: dict[Segment, list[Point]]
+) -> dict[EdgeId, list[tuple[EdgeId, EdgeId]]]:
+    """Split the segments into edges and create the corresponding twin edges
 
     Params:
     -  dcel - The doubly connected edge list
-    -  edge - The edge to split
-    -  intersection_vertex - The intersection point
+    -  splitted_segments - The segments that have been split
+
+    Returns:
+    -  The splitted edges
     """
-    # create a new edge from the intersection point to the origin of the original edge
-    twin = dcel.edges[edge.twin]
+    splitted_edges: dict[EdgeId, list[tuple[EdgeId, EdgeId]]] = {}
+    for segment, points in splitted_segments.items():
+        if len(points) <= 2:
+            continue
 
-    edge1_id = EdgeId.from_vertices(
-        intersection_vertex, edge.origin, f"{dcel.prefix}_{edge.id.id.split('_')[0]}"
-    )
-    edge1_twin_id = EdgeId.from_vertices(
-        edge.origin, intersection_vertex, f"{edge.id.id.split('_')[0]}_{dcel.prefix}"
-    )
-    edge1 = Edge(
-        edge1_id,
-        intersection_vertex,
-        edge1_twin_id,
-        FaceId.null(),
-        EdgeId.null(),
-        EdgeId.null(),
-    )
-    dcel.edges[edge1_id] = edge1
+        for i in range(0, len(points) - 1):
+            edge_id = EdgeId.from_vertices(
+                dcel.points[points[i]],
+                dcel.points[points[i + 1]],
+                f"{dcel.prefix}_{segment.id.split('_')[0]}",
+            )
+            twin_id = EdgeId.from_vertices(
+                dcel.points[points[i + 1]],
+                dcel.points[points[i]],
+                f"{segment.id.split('_')[0]}_{dcel.prefix}",
+            )
+            if splitted_edges.get(EdgeId(segment.id)) is None:
+                splitted_edges[EdgeId(segment.id)] = [(edge_id, twin_id)]
+            else:
+                splitted_edges[EdgeId(segment.id)].extend([(edge_id, twin_id)])
 
-    edge1_twin = Edge(
-        edge1_twin_id,
-        edge.origin,
-        edge1_id,
-        FaceId.null(),
-        EdgeId.null(),
-        EdgeId.null(),
-    )
-    dcel.edges[edge1_twin_id] = edge1_twin
+            edge = Edge(
+                edge_id,
+                dcel.points[points[i]],
+                twin_id,
+                FaceId.null(),
+                EdgeId.null(),
+                EdgeId.null(),
+            )
+            dcel.edges[edge_id] = edge
 
-    # create a new edge from the intersection point to the destination of the original edge
-    edge2_id = EdgeId.from_vertices(
-        intersection_vertex, twin.origin, f"{dcel.prefix}_{edge.id.id.split('_')[0]}"
-    )
-    edge2_twin_id = EdgeId.from_vertices(
-        twin.origin, intersection_vertex, f"{edge.id.id.split('_')[0]}_{dcel.prefix}"
-    )
-    edge2 = Edge(
-        edge2_id,
-        intersection_vertex,
-        edge2_twin_id,
-        FaceId.null(),
-        EdgeId.null(),
-        EdgeId.null(),
-    )
-    dcel.edges[edge2_id] = edge2
+            twin = Edge(
+                twin_id,
+                dcel.points[points[i + 1]],
+                edge_id,
+                FaceId.null(),
+                EdgeId.null(),
+                EdgeId.null(),
+            )
+            dcel.edges[twin_id] = twin
 
-    edge2_twin = Edge(
-        edge2_twin_id,
-        twin.origin,
-        edge2_id,
-        FaceId.null(),
-        EdgeId.null(),
-        EdgeId.null(),
-    )
-    dcel.edges[edge2_twin_id] = edge2_twin
+    return splitted_edges
 
-    # update the predecessor and successor of the edge from intersection to origin
-    dcel.edges[edge1_id] = Edge(
-        edge1_id,
-        edge1.origin,
-        edge1.twin,
-        FaceId.null(),
-        dcel.edges[edge.prev].twin,
-        edge2_twin_id,
+
+def _update_original_edge(
+    dcel: DoublyConnectedEdgeList,
+    original_edge_id: EdgeId,
+    new_edges: list[tuple[EdgeId, EdgeId]],
+) -> None:
+    """Update the original edge with the new edges
+
+    Params:
+    -  dcel - The doubly connected edge list
+    -  original_edge - The original edge
+    -  new_edges - The new edges
+    """
+
+    # Remove the original edge from the incident edges of the origin vertex
+    original_edge = dcel.edges[original_edge_id]
+    dcel.vertices[original_edge.origin] = Vertex(
+        original_edge.origin,
+        dcel.vertices[original_edge.origin].coordinates,
+        list(
+            filter(
+                lambda edge_id: edge_id != original_edge.id,
+                dcel.vertices[original_edge.origin].incident_edges,
+            )
+        ),
     )
-    dcel.edges[edge1_twin_id] = Edge(
-        edge1_twin_id,
-        edge1_twin.origin,
-        edge1_twin.twin,
-        FaceId.null(),
-        edge2_id,
-        edge.prev,
+
+    # Remove the twin edge from the incident edges of the destination vertex
+    original_twin_edge = dcel.edges[original_edge.twin]
+    dcel.vertices[original_twin_edge.origin] = Vertex(
+        original_twin_edge.origin,
+        dcel.vertices[original_twin_edge.origin].coordinates,
+        list(
+            filter(
+                lambda edge_id: edge_id != original_twin_edge.id,
+                dcel.vertices[original_twin_edge.origin].incident_edges,
+            )
+        ),
     )
-    prev_edge = dcel.edges[edge.prev]
-    dcel.edges[edge.prev] = Edge(
+
+    # Update predecessor of the original edge
+    first_new_edge, first_new_edge_twin = new_edges[0]
+    prev_edge = dcel.edges[original_edge.prev]
+    prev_edge_twin = dcel.edges[prev_edge.twin]
+    dcel.edges[prev_edge.id] = Edge(
         prev_edge.id,
         prev_edge.origin,
         prev_edge.twin,
-        FaceId.null(),
-        edge1_twin_id,
+        prev_edge.incident_face,
+        first_new_edge,
         prev_edge.prev,
     )
-    prev_edge_twin = dcel.edges[prev_edge.twin]
-    dcel.edges[prev_edge.twin] = Edge(
+    dcel.edges[prev_edge_twin.id] = Edge(
         prev_edge_twin.id,
         prev_edge_twin.origin,
         prev_edge_twin.twin,
-        FaceId.null(),
+        prev_edge_twin.incident_face,
         prev_edge_twin.next,
-        edge1_id,
+        first_new_edge_twin,
     )
 
-    # update the predecessor and successor of the edge from intersection to destination
-    dcel.edges[edge2_id] = Edge(
-        edge2_id,
-        edge2.origin,
-        edge2.twin,
-        FaceId.null(),
-        edge.next,
-        edge1_twin_id,
-    )
-    dcel.edges[edge2_twin_id] = Edge(
-        edge2_twin_id,
-        edge2_twin.origin,
-        edge2_twin.twin,
-        FaceId.null(),
-        edge1_id,
-        dcel.edges[edge.next].twin,
-    )
-    next_edge = dcel.edges[edge.next]
-    dcel.edges[edge.next] = Edge(
+    # Update successor of the original edge
+    last_new_edge, last_new_edge_twin = new_edges[-1]
+    next_edge = dcel.edges[original_edge.next]
+    next_edge_twin = dcel.edges[next_edge.twin]
+
+    dcel.edges[next_edge.id] = Edge(
         next_edge.id,
         next_edge.origin,
         next_edge.twin,
-        FaceId.null(),
+        next_edge.incident_face,
         next_edge.next,
-        edge2_id,
+        last_new_edge,
     )
-    next_edge_twin = dcel.edges[next_edge.twin]
-    dcel.edges[next_edge.twin] = Edge(
+    dcel.edges[next_edge_twin.id] = Edge(
         next_edge_twin.id,
         next_edge_twin.origin,
         next_edge_twin.twin,
-        FaceId.null(),
-        edge2_twin_id,
+        next_edge_twin.incident_face,
+        last_new_edge_twin,
         next_edge_twin.prev,
     )
 
-    # update the incident edges of the endpoints
-    dcel.vertices[edge.origin].incident_edges.append(edge1_id)
-    dcel.vertices[edge.origin].incident_edges.remove(edge.id)
-    dcel.vertices[twin.origin].incident_edges.append(edge2_id)
-    dcel.vertices[twin.origin].incident_edges.remove(twin.id)
+    # Link the new edges
+    for i in range(len(new_edges)):
+        new_edge = dcel.edges[new_edges[i][0]]
+        new_edge_twin = dcel.edges[new_edges[i][1]]
 
-    return edge1_id, edge2_id
+        # Add the new edges to the incident edges of the origin and destination vertices
+        origin_vertex = dcel.vertices[new_edge.origin]
+        dcel.vertices[new_edge.origin] = Vertex(
+            new_edge.origin,
+            origin_vertex.coordinates,
+            origin_vertex.incident_edges + [new_edge.id],
+        )
+
+        destination_vertex = dcel.vertices[new_edge_twin.origin]
+        dcel.vertices[new_edge_twin.origin] = Vertex(
+            new_edge_twin.origin,
+            destination_vertex.coordinates,
+            destination_vertex.incident_edges + [new_edge_twin.id],
+        )
+
+        # Update the predecessor and successor of the new edges
+        if i == 0:
+            dcel.edges[new_edge.id] = Edge(
+                new_edge.id,
+                new_edge.origin,
+                new_edge.twin,
+                new_edge.incident_face,
+                new_edges[i + 1][0],
+                original_edge.prev,
+            )
+            dcel.edges[new_edge_twin.id] = Edge(
+                new_edge_twin.id,
+                new_edge_twin.origin,
+                new_edge_twin.twin,
+                new_edge_twin.incident_face,
+                original_twin_edge.next,
+                new_edges[i + 1][1],
+            )
+        elif i == len(new_edges) - 1:
+            dcel.edges[new_edge.id] = Edge(
+                new_edge.id,
+                new_edge.origin,
+                new_edge.twin,
+                new_edge.incident_face,
+                original_edge.next,
+                new_edges[i - 1][0],
+            )
+            dcel.edges[new_edge_twin.id] = Edge(
+                new_edge_twin.id,
+                new_edge_twin.origin,
+                new_edge_twin.twin,
+                new_edge_twin.incident_face,
+                new_edges[i - 1][1],
+                original_twin_edge.prev,
+            )
+        else:
+            dcel.edges[new_edge.id] = Edge(
+                new_edge.id,
+                new_edge.origin,
+                new_edge.twin,
+                new_edge.incident_face,
+                new_edges[i + 1][0],
+                new_edges[i - 1][0],
+            )
+            dcel.edges[new_edge_twin.id] = Edge(
+                new_edge_twin.id,
+                new_edge_twin.origin,
+                new_edge_twin.twin,
+                new_edge_twin.incident_face,
+                new_edges[i - 1][1],
+                new_edges[i + 1][1],
+            )
+
+    # Remove the original edge and its twin from the edges
+    del dcel.edges[original_edge.id]
+    del dcel.edges[original_twin_edge.id]
+
+
+def _update_intersection_incident_edges(
+    dcel: DoublyConnectedEdgeList,
+    intersection_vertex: Vertex,
+) -> None:
+    """Update the incident edges of the intersection vertex so that the previous edge
+    is the twin of the previous clockwise incident edge
+
+    Params:
+    -  dcel - The doubly connected edge list
+    -  intersection_vertex - The intersection vertex
+    """
+
+    sorted_edges = dcel.sort_incident_edges(intersection_vertex.incident_edges)
+    for i, edge_id in enumerate(sorted_edges):
+        edge = dcel.edges[edge_id]
+        cw_prev = dcel.edges[dcel.edges[sorted_edges[(i - 1) % len(sorted_edges)]].twin]
+        dcel.edges[edge_id] = Edge(
+            edge.id,
+            edge.origin,
+            edge.twin,
+            edge.incident_face,
+            edge.next,
+            cw_prev.id,
+        )
+
+        # update corresponding edge
+        dcel.edges[cw_prev.id] = Edge(
+            cw_prev.id,
+            cw_prev.origin,
+            cw_prev.twin,
+            cw_prev.incident_face,
+            edge_id,
+            cw_prev.prev,
+        )
+
+    dcel.vertices[intersection_vertex.id] = Vertex(
+        intersection_vertex.id, intersection_vertex.coordinates, sorted_edges
+    )

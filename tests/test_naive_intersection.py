@@ -1,8 +1,9 @@
 import os
 
 import pytest
-from src.data import read_intersection_data
+
 from src.algorithms import naive_intersection
+from src.data import read_intersection_data
 from src.utils import CollinearityError
 
 

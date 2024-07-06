@@ -1,8 +1,9 @@
 from dataclasses import dataclass
 from typing import Optional, Self
 
-from ._constants import EPS, SIGNIFICANT_DIGITS
 from src.utils import ClassComparisonError, CollinearityError, trunc_float
+
+from ._constants import EPS, SIGNIFICANT_DIGITS
 
 
 @dataclass
@@ -246,3 +247,16 @@ class Segment:
         if intersection is None:
             raise ValueError(f"Segment {self} doesn't intersect line {line}")
         return intersection
+
+    def split(self, point: Point) -> tuple[Optional[Self], Optional[Self]]:
+        """Split the segment in two by a point. The point must be contained in the segment"""
+        if not self.contains(point):
+            raise ValueError(f"Point {point} is not contained in segment {self}")
+
+        if point == self.p1:
+            return None, self.__class__(point, self.p2)
+
+        if point == self.p2:
+            return self.__class__(self.p1, point), None
+
+        return self.__class__(self.p1, point), self.__class__(point, self.p2)

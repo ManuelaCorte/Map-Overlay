@@ -1,24 +1,24 @@
-from ._geometry import Segment, Point, Line
-from ._intersection import EventPoint, Status, EventType
-from ._tree import RedBlackTree
 from ._constants import EPS, SIGNIFICANT_DIGITS
 from ._geodata import (
     Feature,
     Geometry,
     GeometryType,
-    PointGeometry,
     LineStringGeometry,
+    PointGeometry,
     PolygonGeometry,
 )
+from ._geometry import Line, Point, Segment
+from ._intersection import EventPoint, EventType, Status
 from ._overlay import (
-    Vertex,
-    Edge,
-    Face,
-    VertexId,
-    EdgeId,
-    FaceId,
     DoublyConnectedEdgeList,
+    Edge,
+    EdgeId,
+    Face,
+    FaceId,
+    Vertex,
+    VertexId,
 )
+from ._tree import RedBlackTree
 
 __all__ = [
     "Segment",

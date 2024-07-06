@@ -1,8 +1,8 @@
-from src.algorithms import naive_intersection
-
-from src.structs import Segment, Point
 from random import random
 from typing import Optional
+
+from src.algorithms import naive_intersection
+from src.structs import Point, Segment
 
 
 def generate_random_data(

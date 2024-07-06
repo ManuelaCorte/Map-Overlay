@@ -1,5 +1,6 @@
 import json
-from src.structs import Segment, Point, Feature
+
+from src.structs import Feature, Point, Segment
 
 
 def read_intersection_data(path: str) -> tuple[list[Segment], int]:

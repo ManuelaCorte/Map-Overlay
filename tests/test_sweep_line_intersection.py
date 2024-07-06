@@ -1,7 +1,9 @@
 import os
-from src.data import read_intersection_data
-from src.algorithms import sweep_line_intersection
+
 import pytest
+
+from src.algorithms import sweep_line_intersection
+from src.data import read_intersection_data
 from src.utils import CollinearityError
 
 
@@ -18,5 +20,5 @@ def test_sweep_line_intersection():
                 intersections = sweep_line_intersection(segments)
             assert type(ex_info.value) == CollinearityError
         else:
-            intersections = sweep_line_intersection(segments)
+            intersections, _ = sweep_line_intersection(segments)
             assert len(intersections.keys()) == num_intersections

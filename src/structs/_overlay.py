@@ -3,9 +3,10 @@ from copy import deepcopy
 from dataclasses import dataclass
 from typing import Self, TypeAlias
 
-from src.structs import Point, Feature, PolygonGeometry
-from src.utils import ClassComparisonError, DcelError
 import graphviz
+
+from src.structs import Feature, Point, PolygonGeometry
+from src.utils import ClassComparisonError, DcelError
 
 
 @dataclass(frozen=True)
@@ -52,6 +53,10 @@ class EdgeId:
 
     def is_null(self) -> bool:
         return self.id == "e_null"
+
+    @property
+    def prefix(self) -> str:
+        return self.id.split("_")[0]
 
     @classmethod
     def from_vertices(
@@ -281,13 +286,20 @@ class DoublyConnectedEdgeList:
 
         dot.render(path, overwrite_source=True, cleanup=True)
 
-    def update(
+    def populate(
         self,
         points: dict[Point, VertexId],
         vertices: dict[VertexId, Vertex],
         edges: dict[EdgeId, Edge],
         faces: dict[FaceId, Face],
     ) -> None:
+        """Populate the DCEL with the provided data. Note that all previous data will be lost.
+
+        Params:
+        -  points: dict[Point, VertexId] - The points of the DCEL
+        -  vertices: dict[VertexId, Vertex] - The vertices of the DCEL
+        -  edges: dict[EdgeId, Edge] - The edges of the DCEL
+        -  faces: dict[FaceId, Face] - The faces of the DCEL"""
         self.points = points
         self.vertices = vertices
         self.edges = edges
@@ -402,7 +414,12 @@ class DoublyConnectedEdgeList:
 
         # Sort incident edges
         for vertex in self.vertices.values():
-            self.vertices[vertex.id] = self.sort_incident_edges(vertex)
+            ordered_edges = self.sort_incident_edges(vertex.incident_edges)
+            self.vertices[vertex.id] = Vertex(
+                id=vertex.id,
+                coordinates=vertex.coordinates,
+                incident_edges=ordered_edges,
+            )
 
         for vertex in self.vertices.values():
             # For every pair of half-edges e1, e2 in clockwise order,
@@ -483,18 +500,22 @@ class DoublyConnectedEdgeList:
         if external_face is None:
             raise DcelError("No external face found")
 
-    def sort_incident_edges(self, vertex: Vertex) -> Vertex:
-        # sort incident edges in counterclockwise order
-        incident_edges = sorted(
-            vertex.incident_edges,
-            key=lambda e: self._angle(self.edges[e]),
-            reverse=True,
-        )
+    def sort_incident_edges(
+        self, incident_edges: list[EdgeId], clockwise: bool = True
+    ) -> list[EdgeId]:
+        """Sort the incident edges of a vertex
 
-        return Vertex(
-            id=vertex.id,
-            coordinates=vertex.coordinates,
-            incident_edges=incident_edges,
+        Params:
+        -  vertex: Vertex - The vertex to sort
+        -  clockwise: bool - Whether to sort the edges in clockwise or counterclockwise order
+
+        Returns:
+        -  Vertex - The vertex with the sorted incident edges"""
+
+        return sorted(
+            incident_edges,
+            key=lambda e: self._angle(self.edges[e]),
+            reverse=clockwise,
         )
 
     def _angle(self, edge: Edge) -> float:

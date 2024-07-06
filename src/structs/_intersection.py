@@ -1,11 +1,12 @@
 from dataclasses import dataclass
 from enum import Enum
+from functools import total_ordering
 from typing import Optional
 
-from ._constants import EPS
-from ._geometry import Point, Segment, Line
-from functools import total_ordering
 from src.utils import ClassComparisonError
+
+from ._constants import EPS
+from ._geometry import Line, Point, Segment
 
 
 #########################################

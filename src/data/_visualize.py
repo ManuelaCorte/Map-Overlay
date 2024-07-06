@@ -1,7 +1,9 @@
 import json
+
 import matplotlib.pyplot as plt
 import numpy as np
-from src.structs import Segment, Point
+
+from src.structs import Point, Segment
 
 
 def plot_intersections(segments: list[Segment], intersections: list[Point]):
@@ -54,7 +56,7 @@ def plot_overlay(overlay: list[list[tuple[Point, Point]]]):
     -  segments - The list of segments to plot"""
     f, ax = plt.subplots(figsize=(10, 10))
 
-    colors = plt.cm.rainbow(np.linspace(0, 1, len(overlay)))  # type: ignore
+    colors = plt.cm.viridis(np.linspace(0, 1, len(overlay)))  # type: ignore
     for face, color in zip(overlay, colors, strict=True):
         x: list[float] = []
         y: list[float] = []
@@ -71,6 +73,6 @@ def plot_overlay(overlay: list[list[tuple[Point, Point]]]):
                 linewidth=1,
             )
         # color the face
-        ax.fill(x, y, color=color, alpha=0.5)
+        ax.fill(x, y, color=color)
     f.tight_layout()
     plt.show()
