@@ -204,12 +204,12 @@ class DoublyConnectedEdgeList:
 
     @property
     def segments(self) -> list[list[tuple[Point, Point]]]:
-        segments = []
+        segments: list[list[tuple[Point, Point]]] = []
         for face in self.faces.values():
             if face.is_external:
                 continue
             boundary = self.boundary(face.outer_component)
-            face_segments = []
+            face_segments: list[tuple[Point, Point]] = []
             for edge_id in boundary:
                 edge = self.edges[edge_id]
                 origin = self.vertices[edge.origin].coordinates

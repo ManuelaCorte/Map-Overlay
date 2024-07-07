@@ -19,4 +19,5 @@ def trunc_float(number: float, decimals: int) -> float:
     Params:
     - number - The number to truncate
     - decimals - The number of decimal places to keep"""
-    return int(number * 10**decimals) / 10**decimals
+    x = round(number, decimals + 1)
+    return int(x * 10**decimals) / 10**decimals
