@@ -67,6 +67,8 @@ class Line:
 
     def is_collinear(self, other: Self) -> bool:
         """Check if two lines are collinear (they're parallel and lie on the same line)"""
+        if self.is_vertical and other.is_vertical:
+            return self.q == other.q
         return abs(self.m - other.m) < EPS and abs(self.q - other.q) < EPS
 
     def intersection(self, other: Self) -> Optional[Point]:
@@ -227,9 +229,7 @@ class Segment:
             if shared_endpoint is not None:
                 return shared_endpoint
             else:
-                raise CollinearityError(
-                    f"Segments {self} and {other} are collinear but don't share an endpoint"
-                )
+                return None
 
         line_intersection = self._line.intersection(other._line)
         if line_intersection is not None:

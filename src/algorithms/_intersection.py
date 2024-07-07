@@ -1,3 +1,4 @@
+from copy import deepcopy
 from typing import Optional
 
 from src.structs import (
@@ -10,7 +11,7 @@ from src.structs import (
     Segment,
     Status,
 )
-from src.utils import CollinearityError, lists_union
+from src.utils import lists_union
 
 
 def naive_intersection(segments: list[Segment]) -> list[Point]:
@@ -65,21 +66,24 @@ def sweep_line_intersection(
             contained_segments,
         )
 
-        for i in range(len(all_segments)):
-            for j in range(i + 1, len(all_segments)):
-                if all_segments[i].is_collinear(all_segments[j]):
-                    shared_endpoint = all_segments[i].shared_endpoint(all_segments[j])
-                    if shared_endpoint is None:
-                        raise CollinearityError(
-                            f"""The algorithm does not support collinear segments.
-                            Segment {all_segments[i]} and {all_segments[j]} are collinear."""
-                        )
         if len(all_segments) > 1:
-            intersections[event.point] = all_segments
-            for segment in all_segments:
-                if segment not in splitted_segments:
-                    splitted_segments[segment] = []
-                splitted_segments[segment].append(event.point)
+            # If two segments are collinear, then they don't intersect
+            intersecting_segments = deepcopy(all_segments)
+            for i in range(len(all_segments)):
+                for j in range(i + 1, len(all_segments)):
+                    if all_segments[i].is_collinear(all_segments[j]):
+                        shared_endpoint = all_segments[i].shared_endpoint(
+                            all_segments[j]
+                        )
+                        if shared_endpoint is None:
+                            intersecting_segments.remove(all_segments[i])
+
+            if len(intersecting_segments) > 1:
+                intersections[event.point] = intersecting_segments
+                for segment in intersecting_segments:
+                    if segment not in splitted_segments:
+                        splitted_segments[segment] = []
+                    splitted_segments[segment].append(event.point)
 
         status.remove(lists_union(contained_segments, lower_endpoint_segments))
         status.add(
