@@ -1,11 +1,11 @@
 import math as m
 from copy import deepcopy
 from dataclasses import dataclass
-from typing import Self, TypeAlias
+from typing import Optional, Self, TypeAlias
 
 import graphviz
 
-from src.structs import Feature, Point, PolygonGeometry
+from src.structs import Feature, Point, PolygonGeometry, EPS
 from src.utils import ClassComparisonError, DcelError
 
 
@@ -451,7 +451,6 @@ class DoublyConnectedEdgeList:
         # for each cycle of half-edges, create a face
         edges_copy = deepcopy(self.edges)
         self.assign_faces(edges_copy)
-        # TODO: merge all external faces into one ?
 
     def assign_faces(self, edges_copy: dict[EdgeId, Edge]) -> None:
         # for each cycle of half-edges, create a face
@@ -488,15 +487,21 @@ class DoublyConnectedEdgeList:
                     next_edge = self.edges[next_edge.next]
 
         # Find external face as the one with negative area
-        external_face = None
+        external_face: Optional[Face] = None
+        faces_to_remove: list[FaceId] = []
         for face in self.faces.values():
-            if self._face_area(face) < 0:
+            area = self._face_area(face)
+            if area < 0:
                 external_face = deepcopy(face)
                 self.faces[external_face.id] = Face(
                     id=external_face.id,
                     outer_component=EdgeId.null(),
                     inner_components=[external_face.outer_component],
                 )
+            if -EPS < area < EPS:
+                faces_to_remove.append(face.id)
+        for face_id in faces_to_remove:
+            del self.faces[face_id]
         if external_face is None:
             raise DcelError("No external face found")
 

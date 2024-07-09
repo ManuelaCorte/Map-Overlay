@@ -1,5 +1,5 @@
-class CollinearityError(Exception):
-    def __init__(self, message: str = "The points are collinear"):
+class ColinearityError(Exception):
+    def __init__(self, message: str = "The points are colinear"):
         self.message = message
         super().__init__(self.message)
 

@@ -1,4 +1,3 @@
-from copy import deepcopy
 from typing import Optional
 
 from src.structs import (
@@ -20,6 +19,13 @@ def naive_intersection(segments: list[Segment]) -> list[Point]:
     intersections: list[Point] = []
     for i in range(len(segments)):
         for j in range(i + 1, len(segments)):
+            if segments[i].is_colinear(segments[j]) and segments[i]:
+                colinear_intersections = segments[i].colinear_intersection(segments[j])
+                for intersection in colinear_intersections:
+                    if intersection not in intersections:
+                        intersections.append(intersection)
+                continue
+
             intersection = segments[i].intersection(segments[j])
             if intersection is not None and intersection not in intersections:
                 intersections.append(intersection)
@@ -65,25 +71,61 @@ def sweep_line_intersection(
             lists_union(upper_endpoint_segments, lower_endpoint_segments),
             contained_segments,
         )
-
         if len(all_segments) > 1:
-            # If two segments are collinear, then they don't intersect
-            intersecting_segments = deepcopy(all_segments)
+            intersections[event.point] = all_segments
+            for segment in all_segments:
+                if segment not in splitted_segments:
+                    splitted_segments[segment] = []
+                (
+                    splitted_segments[segment].append(event.point)
+                    if event.point not in splitted_segments[segment]
+                    else None
+                )
+
+            # Hack: manually handle colinear intersections for horizontal segments
             for i in range(len(all_segments)):
                 for j in range(i + 1, len(all_segments)):
-                    if all_segments[i].is_collinear(all_segments[j]):
-                        shared_endpoint = all_segments[i].shared_endpoint(
-                            all_segments[j]
+                    if (
+                        all_segments[i].is_colinear(all_segments[j])
+                        and all_segments[i].is_horizontal
+                        and all_segments[j].is_horizontal
+                    ):
+                        s1, s2 = (
+                            (all_segments[i], all_segments[j])
+                            if all_segments[i].p1.x < all_segments[j].p1.x
+                            else (all_segments[j], all_segments[i])
                         )
-                        if shared_endpoint is None:
-                            intersecting_segments.remove(all_segments[i])
-
-            if len(intersecting_segments) > 1:
-                intersections[event.point] = intersecting_segments
-                for segment in intersecting_segments:
-                    if segment not in splitted_segments:
-                        splitted_segments[segment] = []
-                    splitted_segments[segment].append(event.point)
+                        s1 = Segment(*s1.order_by_x())
+                        s2 = Segment(*s2.order_by_x())
+                        i1, i2 = s1.colinear_intersection(s2)
+                        splitted_segments[s1] = [s1.p1, i1, s1.p2]
+                        splitted_segments[s2] = [s2.p1, i2, s2.p2]
+                        if intersections.get(i1) is None:
+                            intersections[i1] = [s1, s2]
+                        else:
+                            (
+                                intersections[i1].append(s1)
+                                if s1 not in intersections[i1]
+                                else None
+                            )
+                            (
+                                intersections[i1].append(s2)
+                                if s2 not in intersections[i1]
+                                else None
+                            )
+                        if intersections.get(i2) is None:
+                            intersections[i2] = [s1, s2]
+                        else:
+                            (
+                                intersections[i2].append(s1)
+                                if s1 not in intersections[i2]
+                                else None
+                            )
+                            (
+                                intersections[i2].append(s2)
+                                if s2 not in intersections[i2]
+                                else None
+                            )
 
         status.remove(lists_union(contained_segments, lower_endpoint_segments))
         status.add(
@@ -94,13 +136,9 @@ def sweep_line_intersection(
         segments_to_check = lists_union(upper_endpoint_segments, contained_segments)
         if len(segments_to_check) == 0:
             left_neighbor, right_neighbor = status.neighbours(event.point)
-            new_event, existing_intersection = _find_new_event(
+            _find_new_event(
                 event_queue, left_neighbor, right_neighbor, sweep_line, event.point
             )
-            if existing_intersection is not None:
-                event_queue.delete(existing_intersection)
-            if new_event is not None:
-                event_queue.insert(new_event)
 
         else:
             leftmost_segment: Optional[Segment] = None
@@ -114,17 +152,13 @@ def sweep_line_intersection(
                     if status.index(leftmost_segment) - 1 >= 0
                     else None
                 )
-                new_event, existing_intersection = _find_new_event(
+                _find_new_event(
                     event_queue,
                     left_neighbor,
                     leftmost_segment,
                     sweep_line,
                     event.point,
                 )
-                if existing_intersection is not None:
-                    event_queue.delete(existing_intersection)
-                if new_event is not None:
-                    event_queue.insert(new_event)
 
             rightmost_segment: Optional[Segment] = None
             for i in range(len(status) - 1, -1, -1):
@@ -137,17 +171,13 @@ def sweep_line_intersection(
                     if status.index(rightmost_segment) + 1 < len(status)
                     else None
                 )
-                new_event, existing_intersection = _find_new_event(
+                _find_new_event(
                     event_queue,
                     rightmost_segment,
                     right_neighbor,
                     sweep_line,
                     event.point,
                 )
-                if existing_intersection is not None:
-                    event_queue.delete(existing_intersection)
-                if new_event is not None:
-                    event_queue.insert(new_event)
 
     return intersections, splitted_segments
 
@@ -201,17 +231,17 @@ def _find_new_event(
     right_segment: Optional[Segment],
     sweep_line: Line,
     event_point: Point,
-) -> tuple[Optional[EventPoint], Optional[EventPoint]]:
+) -> None:
     """Checks if the intersection between the two segments exists and if it's below the sweep line (thus we
     haven't considered it yet). If it is, then it's added to the event queue. If the intersection already exists
     in the event queue, then the segments are added to the event point."""
     if left_segment is None or right_segment is None:
-        return None, None
+        return
 
     intersection: Optional[Point] = None
     intersection_point = left_segment.intersection(right_segment)
     if intersection_point is None:
-        return None, None
+        return
 
     if intersection_point.y < sweep_line.q:
         intersection = intersection_point
@@ -234,21 +264,12 @@ def _find_new_event(
                 existing_intersection.value.segments,
             )
             new_event.add_segments([left_segment, right_segment])
-            # self._event_queue.delete(existing_intersection.value)
-            # self._event_queue.insert(new_event)
+            event_queue.delete(existing_intersection.value)
+            event_queue.insert(new_event)
         else:
             new_event = EventPoint(
                 EventType.INTERSECTION,
                 intersection,
                 [left_segment, right_segment],
             )
-            # self._event_queue.insert(
-            #     EventPoint(
-            #         EventType.INTERSECTION,
-            #         intersection,
-            #         [left_segment, right_segment],
-            #     )
-            # )
-    return new_event, (
-        existing_intersection.value if existing_intersection is not None else None
-    )
+            event_queue.insert(new_event)

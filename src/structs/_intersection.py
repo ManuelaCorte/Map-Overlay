@@ -35,7 +35,7 @@ class EventPoint:
         return self.point == __value.point
 
     def __hash__(self) -> int:
-        return hash((hash(self.type), hash(self.type), hash(self.segments)))
+        return hash((hash(self.type), hash(self.point), hash(self.segments)))
 
     def __lt__(self, __value: object) -> bool:
         if not isinstance(__value, EventPoint):

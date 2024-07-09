@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Optional, Self
 
-from src.utils import ClassComparisonError, CollinearityError, trunc_float
+from src.utils import ClassComparisonError, ColinearityError, trunc_float
 
 from ._constants import EPS, SIGNIFICANT_DIGITS
 
@@ -65,15 +65,14 @@ class Line:
         """Check if the line is horizontal"""
         return self.m < EPS
 
-    def is_collinear(self, other: Self) -> bool:
-        """Check if two lines are collinear (they're parallel and lie on the same line)"""
+    def is_colinear(self, other: Self) -> bool:
+        """Check if two lines are colinear (they're parallel and lie on the same line)"""
         if self.is_vertical and other.is_vertical:
             return self.q == other.q
         return abs(self.m - other.m) < EPS and abs(self.q - other.q) < EPS
 
     def intersection(self, other: Self) -> Optional[Point]:
-        """Calculate the intersection point of two lines. If the two lines overlap then
-        no intersection point is returned.
+        """Calculate the intersection point of two lines..
 
         Returns:
             Point: The intersection point of the two lines"""
@@ -146,8 +145,12 @@ class Segment:
         """Check if the segment is horizontal"""
         return abs(self.p1.y - self.p2.y) < EPS
 
-    def is_collinear(self, other: Self) -> bool:
-        """Check if two segments are collinear (they're parallel and lie on the same line) and they
+    @classmethod
+    def from_points(cls, p1: Point, p2: Point, id: str = "") -> Self:
+        return cls(p1, p2, id)
+
+    def is_colinear(self, other: Self) -> bool:
+        """Check if two segments are colinear (they're parallel and lie on the same line) and they
         overlap in at least one point (endpoints included)"""
         is_contained = (
             self.contains(other.p1)
@@ -155,7 +158,7 @@ class Segment:
             or other.contains(self.p1)
             or other.contains(self.p2)
         )
-        return self._line.is_collinear(other._line) and is_contained
+        return self._line.is_colinear(other._line) and is_contained
 
     def order_by_y(self) -> tuple[Point, Point]:
         """Order the segment points by their y coordinate where the start point is the one with the highest y coordinate.
@@ -222,14 +225,8 @@ class Segment:
         return None
 
     def intersection(self, other: Self) -> Optional[Point]:
-        """Calculate the intersection point of two segments. Collinear segments that only share the
-        endpoint are considered as intersecting"""
-        if self.is_collinear(other):
-            shared_endpoint = self.shared_endpoint(other)
-            if shared_endpoint is not None:
-                return shared_endpoint
-            else:
-                return None
+        """Calculate the intersection point of two segments. The segments are
+        assumed to not be colinear"""
 
         line_intersection = self._line.intersection(other._line)
         if line_intersection is not None:
@@ -237,11 +234,36 @@ class Segment:
                 return line_intersection
         return None
 
+    def colinear_intersection(self, other: Self) -> tuple[Point, Point]:
+        """Calculate the intersection points of two colinear segments. The segments are
+        assumed to be colinear"""
+        if not self.is_colinear(other):
+            raise ColinearityError(f"Segments {self} and {other} are not colinear")
+
+        intersections: list[Point] = []
+        if self.contains(other.p1):
+            intersections.append(other.p1)
+        if self.contains(other.p2):
+            intersections.append(other.p2)
+        if other.contains(self.p1):
+            intersections.append(self.p1)
+        if other.contains(self.p2):
+            intersections.append(self.p2)
+
+        if len(intersections) != 2:
+            print(intersections)
+            raise ValueError(f"Segments {self} and {other} do not intersect")
+        return (
+            (intersections[0], intersections[1])
+            if intersections[0].x < intersections[1].x
+            else (intersections[1], intersections[0])
+        )
+
     def intersection_with_line(self, line: Line) -> Point:
         """Calculate the intersection point of a segment with a line. Assumes that the segment doesn't lie
         on the line."""
-        if self._line.is_collinear(line):
-            raise CollinearityError(f"Segment {self} is collinear with line {line}")
+        if self._line.is_colinear(line):
+            raise ColinearityError(f"Segment {self} is colinear with line {line}")
 
         intersection = self._line.intersection(line)
         if intersection is None:

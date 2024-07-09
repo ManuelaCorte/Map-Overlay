@@ -67,19 +67,17 @@ def overlay(
             or segment.p2 == intersection_point,
             intersecting_segments,
         )
+        intersection_at_endpoint = list(intersection_at_endpoint)
         if all(intersection_at_endpoint):
-            intersection_vertex_id = _get_vertex(
-                dcel,
-                overlapping_points,
-                intersection_point,
-                intersecting_segments[0].id.split("_")[0],
+            prefixes = set(
+                map(lambda segment: segment.id.split("_")[0], intersecting_segments)
             )
-            intersection_vertex = dcel.vertices[intersection_vertex_id]
-            _update_intersection_incident_edges(dcel, intersection_vertex)
-            if overlapping_points.get(intersection_point) is not None:
-                _update_intersection_incident_edges(
-                    dcel, dcel.vertices[overlapping_points[intersection_point]]
+            for prefix in prefixes:
+                intersection_vertex_id = _get_vertex(
+                    dcel, overlapping_points, intersection_point, prefix
                 )
+                intersection_vertex = dcel.vertices[intersection_vertex_id]
+                _update_intersection_incident_edges(dcel, intersection_vertex)
             continue
 
         # check if the all intersecting segments belong to the same overlay
@@ -305,17 +303,35 @@ def _update_original_edge(
 
         # Add the new edges to the incident edges of the origin and destination vertices
         origin_vertex = dcel.vertices[new_edge.origin]
+        # This is a hack to avoid reinserting the edge that is being
+        # divided back into the incident edges
+        incident_edges = list(
+            filter(
+                lambda edge_id: edge_id != original_edge.id
+                and edge_id != original_twin_edge.id,
+                origin_vertex.incident_edges,
+            )
+        )
         dcel.vertices[new_edge.origin] = Vertex(
             new_edge.origin,
             origin_vertex.coordinates,
-            origin_vertex.incident_edges + [new_edge.id],
+            incident_edges + [new_edge.id],
         )
 
         destination_vertex = dcel.vertices[new_edge_twin.origin]
+        # This is a hack to avoid reinserting the edge that is being
+        # divided back into the incident edges
+        incident_edges = list(
+            filter(
+                lambda edge_id: edge_id != original_edge.id
+                and edge_id != original_twin_edge.id,
+                destination_vertex.incident_edges,
+            )
+        )
         dcel.vertices[new_edge_twin.origin] = Vertex(
             new_edge_twin.origin,
             destination_vertex.coordinates,
-            destination_vertex.incident_edges + [new_edge_twin.id],
+            incident_edges + [new_edge_twin.id],
         )
 
         # Update the predecessor and successor of the new edges
@@ -371,22 +387,34 @@ def _update_original_edge(
                 new_edges[i + 1][1],
             )
 
-    origin_vertex = dcel.vertices[original_edge.origin]
-    overlapping_vertex = overlapping_points.get(origin_vertex.coordinates)
+    original_edge_origin = dcel.vertices[original_edge.origin].coordinates
+    origin_vertex = dcel.points[original_edge_origin]
+    dcel.vertices[origin_vertex] = Vertex(
+        origin_vertex,
+        original_edge_origin,
+        dcel.vertices[dcel.edges[new_edges[0][0]].origin].incident_edges,
+    )
+    overlapping_vertex = overlapping_points.get(original_edge_origin)
     if overlapping_vertex is not None:
         dcel.vertices[overlapping_vertex] = Vertex(
             overlapping_vertex,
-            origin_vertex.coordinates,
-            origin_vertex.incident_edges,
+            original_edge_origin,
+            dcel.vertices[origin_vertex].incident_edges,
         )
 
-    destination_vertex = dcel.vertices[original_twin_edge.origin]
-    overlapping_vertex = overlapping_points.get(destination_vertex.coordinates)
+    original_edge_destination = dcel.vertices[original_twin_edge.origin].coordinates
+    destination_vertex = dcel.points[original_edge_destination]
+    dcel.vertices[destination_vertex] = Vertex(
+        destination_vertex,
+        original_edge_destination,
+        dcel.vertices[dcel.edges[new_edges[-1][1]].origin].incident_edges,
+    )
+    overlapping_vertex = overlapping_points.get(original_edge_destination)
     if overlapping_vertex is not None:
         dcel.vertices[overlapping_vertex] = Vertex(
             overlapping_vertex,
-            destination_vertex.coordinates,
-            destination_vertex.incident_edges,
+            original_edge_destination,
+            dcel.vertices[destination_vertex].incident_edges,
         )
 
     # Remove the original edge and its twin from the edges
@@ -407,9 +435,41 @@ def _update_intersection_incident_edges(
     """
 
     sorted_edges = dcel.sort_incident_edges(intersection_vertex.incident_edges)
-    for i, edge_id in enumerate(sorted_edges):
+    disambiguated_edges: list[EdgeId] = []
+    i = 0
+    while i < len(sorted_edges):
+        edge = dcel.edges[sorted_edges[i]]
+        edge_twin = dcel.edges[edge.twin]
+        if len(sorted_edges) == 1:
+            disambiguated_edges.append(edge.id)
+            break
+
+        next_edge = dcel.edges[sorted_edges[(i + 1) % len(sorted_edges)]]
+        next_edge_twin = dcel.edges[next_edge.twin]
+        if (
+            dcel.vertices[edge_twin.origin].coordinates
+            == dcel.vertices[next_edge_twin.origin].coordinates
+        ):
+            # if the edge before our current edge belongs to the same dcel then we keep the order
+            # otherwise we switch edge and next_edge
+            prev_edge = dcel.edges[sorted_edges[(i - 1) % len(sorted_edges)]]
+            if prev_edge.id.prefix == edge.id.prefix:
+                disambiguated_edges.append(edge.id)
+                disambiguated_edges.append(next_edge.id)
+                i += 2
+            else:
+                disambiguated_edges.append(next_edge.id)
+                disambiguated_edges.append(edge.id)
+                i += 2
+        else:
+            disambiguated_edges.append(edge.id)
+            i += 1
+
+    for i, edge_id in enumerate(disambiguated_edges):
         edge = dcel.edges[edge_id]
-        cw_prev = dcel.edges[dcel.edges[sorted_edges[(i - 1) % len(sorted_edges)]].twin]
+        cw_prev = dcel.edges[
+            dcel.edges[disambiguated_edges[(i - 1) % len(disambiguated_edges)]].twin
+        ]
         dcel.edges[edge_id] = Edge(
             edge.id,
             edge.origin,
@@ -430,7 +490,7 @@ def _update_intersection_incident_edges(
         )
 
     dcel.vertices[intersection_vertex.id] = Vertex(
-        intersection_vertex.id, intersection_vertex.coordinates, sorted_edges
+        intersection_vertex.id, intersection_vertex.coordinates, disambiguated_edges
     )
 
 

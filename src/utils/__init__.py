@@ -1,6 +1,6 @@
 from ._errors import (
     ClassComparisonError,
-    CollinearityError,
+    ColinearityError,
     DcelError,
     NotRunYetError,
     OverlayError,
@@ -10,7 +10,7 @@ from ._misc import lists_union, trunc_float
 __all__ = [
     "lists_union",
     "ClassComparisonError",
-    "CollinearityError",
+    "ColinearityError",
     "NotRunYetError",
     "OverlayError",
     "DcelError",

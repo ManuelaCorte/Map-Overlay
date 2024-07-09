@@ -1,10 +1,7 @@
 import os
 
-import pytest
-
 from src.algorithms import naive_intersection
 from src.data import read_intersection_data
-from src.utils import CollinearityError
 
 
 # Test files were adapted from:
@@ -16,9 +13,4 @@ def test_naive_intersection():
         path = f"data/intersections/{file}"
         print(f"Testing {path}")
         segments, num_intersections = read_intersection_data(path)
-        if num_intersections == -1:
-            with pytest.raises(CollinearityError) as ex_info:
-                naive_intersection(segments)
-            assert type(ex_info.value) == CollinearityError
-        else:
-            assert len(naive_intersection(segments)) == num_intersections
+        assert len(naive_intersection(segments)) == num_intersections
