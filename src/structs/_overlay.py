@@ -38,6 +38,15 @@ class VertexId:
     def null(cls) -> Self:
         return cls(id="v_null")
 
+    @property
+    def prefix(self) -> str:
+        prefix: list[str] = []
+        for elem in self.id.split("_"):
+            if elem in ["e", "v", "f"]:
+                break
+            prefix.append(elem)
+        return "_".join(prefix)
+
 
 @dataclass(frozen=True)
 class EdgeId:
@@ -56,7 +65,12 @@ class EdgeId:
 
     @property
     def prefix(self) -> str:
-        return self.id.split("_")[0]
+        prefix: list[str] = []
+        for elem in self.id.split("_"):
+            if elem in ["e", "v", "f"]:
+                break
+            prefix.append(elem)
+        return "_".join(prefix)
 
     @classmethod
     def from_vertices(
@@ -198,6 +212,7 @@ class DoublyConnectedEdgeList:
         self.vertices: dict[VertexId, Vertex] = {}
         self.points: dict[Point, VertexId] = {}
         self.prefix = prefix
+        self.overlapping_points: dict[Point, VertexId] = {}
 
         if len(polygons_list) > 0:
             self._build_dcel(polygons_list)
@@ -256,12 +271,23 @@ class DoublyConnectedEdgeList:
     def to_image(self, path: str) -> None:
         dot = graphviz.Digraph(name="DCEL", format="png", engine="neato")
         dot.attr(overlap="false")
-        for node in self.vertices.values():
-            dot.node(
-                node.id.id,
-                label=node.id.id,
-                pos=f"{node.coordinates.x},{node.coordinates.y}",
-            )
+        overlapped_vertices: dict[str, str] = {}
+        for coordinates, vertex_id in self.points.items():
+            overlapped_vertex = self.overlapping_points.get(coordinates)
+            if overlapped_vertex is not None:
+                dot.node(
+                    f"{vertex_id.id}",
+                    label=f"{vertex_id.id}\n{overlapped_vertex.id}",
+                    pos=f"{coordinates.x},{coordinates.y}",
+                    color="red",
+                )
+                overlapped_vertices[overlapped_vertex.id] = vertex_id.id
+            else:
+                dot.node(
+                    vertex_id.id,
+                    label=f"{vertex_id.id}",
+                    pos=f"{coordinates.x},{coordinates.y}",
+                )
 
         for face in self.faces.values():
             if face.is_external:
@@ -269,18 +295,30 @@ class DoublyConnectedEdgeList:
                     boundary = self.boundary(inner_component)
                     for edge_id in boundary:
                         edge = self.edges[edge_id]
+                        origin = edge.origin.id
+                        destination = self.edges[edge.next].origin.id
                         dot.edge(
-                            edge.origin.id,
-                            self.edges[edge.next].origin.id,
+                            origin
+                            if origin not in overlapped_vertices
+                            else overlapped_vertices[origin],
+                            destination
+                            if destination not in overlapped_vertices
+                            else overlapped_vertices[destination],
                             label=edge.incident_face.id,
                         )
             else:
                 boundary = self.boundary(face.outer_component)
                 for edge_id in boundary:
                     edge = self.edges[edge_id]
+                    origin = edge.origin.id
+                    destination = self.edges[edge.next].origin.id
                     dot.edge(
-                        edge.origin.id,
-                        self.edges[edge.next].origin.id,
+                        origin
+                        if origin not in overlapped_vertices
+                        else overlapped_vertices[origin],
+                        destination
+                        if destination not in overlapped_vertices
+                        else overlapped_vertices[destination],
                         label=edge.incident_face.id,
                     )
 
@@ -292,6 +330,7 @@ class DoublyConnectedEdgeList:
         vertices: dict[VertexId, Vertex],
         edges: dict[EdgeId, Edge],
         faces: dict[FaceId, Face],
+        overlapping_points: dict[Point, VertexId],
     ) -> None:
         """Populate the DCEL with the provided data. Note that all previous data will be lost.
 
@@ -304,6 +343,7 @@ class DoublyConnectedEdgeList:
         self.vertices = vertices
         self.edges = edges
         self.faces = faces
+        self.overlapping_points = overlapping_points
 
     ###############################
     ## Private methods

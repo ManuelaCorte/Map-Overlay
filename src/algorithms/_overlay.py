@@ -20,7 +20,7 @@ def overlay(
     s1: DoublyConnectedEdgeList, s2: DoublyConnectedEdgeList
 ) -> DoublyConnectedEdgeList:
     """Compute the overlay of two doubly connected edge lists."""
-    dcel, overlapping_points = _merge(s1, s2)
+    dcel = _merge(s1, s2)
 
     segments: set[Segment] = set()
     for _, edge in dcel.edges.items():
@@ -34,8 +34,8 @@ def overlay(
         )
         p1, p2 = segment.order_by_y()
         new_id = EdgeId.from_vertices(
-            _get_vertex(dcel, overlapping_points, p1, edge.id.prefix),
-            _get_vertex(dcel, overlapping_points, p2, edge.id.prefix),
+            _get_vertex(dcel, dcel.overlapping_points, p1, edge.id.prefix),
+            _get_vertex(dcel, dcel.overlapping_points, p2, edge.id.prefix),
             edge.id.prefix,
         )
         segments.add(Segment(p1, p2, new_id.id))
@@ -45,7 +45,7 @@ def overlay(
     for intersection_point in intersections.keys():
         if (
             intersection_point not in dcel.points
-            and intersection_point not in overlapping_points
+            and intersection_point not in dcel.overlapping_points
         ):
             vertex_id = VertexId(f"{dcel.prefix}_v_{len(dcel.vertices)}")
             dcel.points[intersection_point] = vertex_id
@@ -57,7 +57,7 @@ def overlay(
 
     # Remove the original edges and add the new ones
     for original_edge, new_edges in splitted_edges.items():
-        _update_original_edge(dcel, original_edge, new_edges, overlapping_points)
+        _update_original_edge(dcel, original_edge, new_edges)
 
     for intersection_point, intersecting_segments in intersections.items():
         # check if the intersection point is an endpoint for all the intersecting segments
@@ -74,7 +74,7 @@ def overlay(
             )
             for prefix in prefixes:
                 intersection_vertex_id = _get_vertex(
-                    dcel, overlapping_points, intersection_point, prefix
+                    dcel, dcel.overlapping_points, intersection_point, prefix
                 )
                 intersection_vertex = dcel.vertices[intersection_vertex_id]
                 _update_intersection_incident_edges(dcel, intersection_vertex)
@@ -101,7 +101,7 @@ def overlay(
 
 def _merge(
     s1: DoublyConnectedEdgeList, s2: DoublyConnectedEdgeList
-) -> tuple[DoublyConnectedEdgeList, dict[Point, VertexId]]:
+) -> DoublyConnectedEdgeList:
     """Merge two doubly connected edge lists into one.
 
     Params:
@@ -110,7 +110,6 @@ def _merge(
 
     Returns:
     -  The merged doubly connected edge list
-    -  The points that overlap between the the two doubly connected edge lists
     """
     if s1.prefix == s2.prefix:
         raise DcelError("The two DCELs have the same prefix")
@@ -150,8 +149,8 @@ def _merge(
             vertices[s1_vertex_id] = Vertex(s1_vertex_id, point, incident_edges)
             vertices[s2_vertex_id] = Vertex(s2_vertex_id, point, incident_edges)
 
-    dcel.populate(points, vertices, edges, faces)
-    return dcel, overlapping_points
+    dcel.populate(points, vertices, edges, faces, overlapping_points)
+    return dcel
 
 
 def _split_segments_into_edges_at_intersections(
@@ -215,7 +214,6 @@ def _update_original_edge(
     dcel: DoublyConnectedEdgeList,
     original_edge_id: EdgeId,
     new_edges: list[tuple[EdgeId, EdgeId]],
-    overlapping_points: dict[Point, VertexId],
 ) -> None:
     """Update the original edge with the new edges
 
@@ -394,7 +392,7 @@ def _update_original_edge(
         original_edge_origin,
         dcel.vertices[dcel.edges[new_edges[0][0]].origin].incident_edges,
     )
-    overlapping_vertex = overlapping_points.get(original_edge_origin)
+    overlapping_vertex = dcel.overlapping_points.get(original_edge_origin)
     if overlapping_vertex is not None:
         dcel.vertices[overlapping_vertex] = Vertex(
             overlapping_vertex,
@@ -409,7 +407,7 @@ def _update_original_edge(
         original_edge_destination,
         dcel.vertices[dcel.edges[new_edges[-1][1]].origin].incident_edges,
     )
-    overlapping_vertex = overlapping_points.get(original_edge_destination)
+    overlapping_vertex = dcel.overlapping_points.get(original_edge_destination)
     if overlapping_vertex is not None:
         dcel.vertices[overlapping_vertex] = Vertex(
             overlapping_vertex,

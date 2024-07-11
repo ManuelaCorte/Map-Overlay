@@ -1,4 +1,5 @@
 import json
+import os
 from typing import Optional
 
 import matplotlib.pyplot as plt
@@ -7,7 +8,11 @@ import numpy as np
 from src.structs import Point, Segment
 
 
-def plot_intersections(segments: list[Segment], intersections: list[Point]):
+def plot_intersections(
+    segments: list[Segment],
+    intersections: list[Point],
+    file_path: Optional[str] = None,
+):
     """
     Plot the segments and their intersections
 
@@ -25,13 +30,18 @@ def plot_intersections(segments: list[Segment], intersections: list[Point]):
         ax.plot(intersection.x, intersection.y, "ro")
 
     f.tight_layout()
+    if file_path:
+        output_folder = "/".join(file_path.split("/")[:-1])
+        if not os.path.exists(output_folder):
+            os.makedirs(output_folder)
+        f.savefig(file_path)
     plt.show()
 
 
-def plot_geojson(path: str) -> None:
+def plot_geojson(input: str) -> None:
     _, ax = plt.subplots(figsize=(15, 10))
 
-    with open(path, "r") as f:
+    with open(input, "r") as f:
         data = json.load(f)
         for feature in data["features"]:
             type = feature["geometry"]["type"]
@@ -49,7 +59,9 @@ def plot_geojson(path: str) -> None:
     plt.show()
 
 
-def plot_overlay(overlay: list[list[tuple[Point, Point]]]):
+def plot_overlay(
+    overlay: list[list[tuple[Point, Point]]], file_path: Optional[str] = None
+):
     """
     Plot the segments and their intersections
 
@@ -77,7 +89,13 @@ def plot_overlay(overlay: list[list[tuple[Point, Point]]]):
             )
         # color the face
         ax.fill(x, y, color=color)
+
     f.tight_layout()
+    if file_path:
+        output_folder = "/".join(file_path.split("/")[:-1])
+        if not os.path.exists(output_folder):
+            os.makedirs(output_folder)
+        f.savefig(file_path)
     plt.show()
 
 
