@@ -51,8 +51,8 @@ def overlay(
             dcel.points[intersection_point] = vertex_id
             dcel.vertices[vertex_id] = Vertex(vertex_id, intersection_point, [])
 
-    splitted_edges: dict[EdgeId, list[tuple[EdgeId, EdgeId]]] = (
-        _split_segments_into_edges_at_intersections(dcel, splitted_segments)
+    splitted_edges, original_edges = _split_segments_into_edges_at_intersections(
+        dcel, splitted_segments
     )
 
     # Remove the original edges and add the new ones
@@ -96,6 +96,8 @@ def overlay(
     # update faces
     dcel.assign_faces(deepcopy(dcel.edges))
 
+    # find which faces from the two input DCELs are compose each overlay face
+    _update_faces_provenance(dcel, s1, s2, original_edges)
     return dcel
 
 
@@ -155,7 +157,7 @@ def _merge(
 
 def _split_segments_into_edges_at_intersections(
     dcel: DoublyConnectedEdgeList, splitted_segments: dict[Segment, list[Point]]
-) -> dict[EdgeId, list[tuple[EdgeId, EdgeId]]]:
+) -> tuple[dict[EdgeId, list[tuple[EdgeId, EdgeId]]], dict[EdgeId, EdgeId]]:
     """Split the segments into edges and create the corresponding twin edges
 
     Params:
@@ -163,9 +165,11 @@ def _split_segments_into_edges_at_intersections(
     -  splitted_segments - The segments that have been split
 
     Returns:
-    -  The splitted edges
+    - dictionary where for each edge we have a list of edges it was split into
+    - dictiorary where for each split edge we have the original edge
     """
     splitted_edges: dict[EdgeId, list[tuple[EdgeId, EdgeId]]] = {}
+    original_edges: dict[EdgeId, EdgeId] = {}
     for segment, points in splitted_segments.items():
         if len(points) <= 2:
             continue
@@ -207,7 +211,13 @@ def _split_segments_into_edges_at_intersections(
             )
             dcel.edges[twin_id] = twin
 
-    return splitted_edges
+    for original_edge, splits in splitted_edges.items():
+        for split in splits:
+            original_twin = dcel.edges[original_edge].twin
+            original_edges[split[0]] = original_edge
+            original_edges[split[1]] = original_twin
+
+    return splitted_edges, original_edges
 
 
 def _update_original_edge(
@@ -506,3 +516,65 @@ def _get_vertex(
             return overlapping_points[point]
     else:
         raise OverlayError(f"Point {point} not found in the DCEL")
+
+
+def _update_faces_provenance(
+    dcel: DoublyConnectedEdgeList,
+    s1: DoublyConnectedEdgeList,
+    s2: DoublyConnectedEdgeList,
+    original_edges: dict[EdgeId, EdgeId],
+) -> None:
+    info: dict[FaceId, str] = {}
+    for face_id, face in dcel.faces.items():
+        if face.is_external:
+            continue
+
+        components_faces: list[str] = []
+        for edge_id in dcel.boundary(face.outer_component):
+            original_splitted_edge = original_edges.get(edge_id)
+            if original_splitted_edge is not None:
+                original_edge = (
+                    s1.edges[original_splitted_edge]
+                    if s1.edges.get(original_splitted_edge) is not None
+                    else s2.edges.get(original_splitted_edge)
+                )
+            else:
+                original_edge = (
+                    s1.edges[edge_id]
+                    if s1.edges.get(edge_id) is not None
+                    else s2.edges.get(edge_id)
+                )
+            if original_edge is None:
+                raise OverlayError(
+                    "Edge was not found neither in the original DCELs nor in the overlay DCEL"
+                )
+
+            prefix = original_edge.id.prefix
+            if s1.prefix in prefix:
+                if s1.faces.get(original_edge.incident_face) is not None:
+                    f = s1.faces[original_edge.incident_face]
+                    if not f.is_external:
+                        components_faces.append(
+                            f"{original_edge.id.prefix}_{original_edge.incident_face.id}"
+                        )
+            elif s2.prefix in prefix:
+                if s2.faces.get(original_edge.incident_face) is not None:
+                    f = s2.faces[original_edge.incident_face]
+                    if not f.is_external:
+                        components_faces.append(
+                            f"{original_edge.id.prefix}_{original_edge.incident_face.id}"
+                        )
+            else:
+                raise OverlayError("Edge prefix not found in the original DCELs")
+
+        info[face_id] = " - ".join(set(sorted(components_faces, reverse=True)))
+
+    for face_id, components in info.items():
+        face = dcel.faces[face_id]
+        dcel.faces[face_id] = Face(
+            face.id,
+            face.outer_component,
+            face.inner_components,
+            face.area,
+            info=components,
+        )

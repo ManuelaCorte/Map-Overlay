@@ -95,6 +95,8 @@ class Face:
     id: FaceId
     outer_component: EdgeId
     inner_components: list[EdgeId]
+    area: float
+    info: Optional[str] = None
 
     def __hash__(self) -> int:
         return hash(self.id.id)
@@ -118,6 +120,7 @@ class Face:
             id=FaceId.null(),
             outer_component=EdgeId.null(),
             inner_components=[],
+            area=0,
         )
 
 
@@ -308,6 +311,7 @@ class DoublyConnectedEdgeList:
                         )
             else:
                 boundary = self.boundary(face.outer_component)
+                # label = edge.incident_face.id if self.faces[edge.incident_face].info is None else self.faces[edge.incident_face].info
                 for edge_id in boundary:
                     edge = self.edges[edge_id]
                     origin = edge.origin.id
@@ -499,9 +503,7 @@ class DoublyConnectedEdgeList:
             if edge.incident_face.is_null():
                 face_id = FaceId(id=f"f_{len(self.faces)}")
                 face = Face(
-                    id=face_id,
-                    outer_component=edge.id,
-                    inner_components=[],
+                    id=face_id, outer_component=edge.id, inner_components=[], area=0
                 )
                 self.faces[face_id] = face
                 self.edges[edge.id] = Edge(
@@ -537,6 +539,14 @@ class DoublyConnectedEdgeList:
                     id=external_face.id,
                     outer_component=EdgeId.null(),
                     inner_components=[external_face.outer_component],
+                    area=area,
+                )
+            else:
+                self.faces[face.id] = Face(
+                    id=face.id,
+                    outer_component=face.outer_component,
+                    inner_components=face.inner_components,
+                    area=area,
                 )
             if -EPS < area < EPS:
                 faces_to_remove.append(face.id)
@@ -582,3 +592,22 @@ class DoublyConnectedEdgeList:
             area += origin.x * destination.y - origin.y * destination.x
 
         return area / 2
+
+    def face_center(self, face: Face) -> Point:
+        # https://en.wikipedia.org/wiki/Centroid#Of_a_polygon
+        boundary = self.boundary(face.outer_component)
+        cx = 0
+        cy = 0
+        for edge_id in boundary:
+            edge = self.edges[edge_id]
+            origin = self.vertices[edge.origin].coordinates
+            destination = self.vertices[self.edges[edge.next].origin].coordinates
+            cx += (origin.x + destination.x) * (
+                origin.x * destination.y - destination.x * origin.y
+            )
+            cy += (origin.y + destination.y) * (
+                origin.x * destination.y - destination.x * origin.y
+            )
+        cx /= 6 * face.area
+        cy /= 6 * face.area
+        return Point(cx, cy)
