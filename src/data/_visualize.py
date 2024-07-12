@@ -60,7 +60,9 @@ def plot_geojson(input: str) -> None:
 
 
 def plot_overlay(
-    overlay: list[list[tuple[Point, Point]]], file_path: Optional[str] = None
+    overlay: list[list[tuple[Point, Point]]],
+    faces_labels: list[tuple[str, Point]],
+    file_path: Optional[str] = None,
 ):
     """
     Plot the segments and their intersections
@@ -89,6 +91,17 @@ def plot_overlay(
             )
         # color the face
         ax.fill(x, y, color=color)
+
+    for i, (info, center) in enumerate(faces_labels):
+        ax.scatter(
+            center.x,
+            center.y,
+            marker="$" + str(i) + "$",
+            color="black",
+            s=50,
+            label=info,
+        )
+    ax.legend()
 
     f.tight_layout()
     if file_path:
