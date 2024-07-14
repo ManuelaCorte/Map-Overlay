@@ -56,7 +56,12 @@ def run_overlay(files: list[str], output_folder: Optional[str], plot: bool):
         file_path = output_folder + "/" + file_path
 
     if plot:
-        plot_overlay(overlay_dcel.segments, file_path)
+        labels = [
+            (face.info, overlay_dcel.face_center(face))
+            for face in overlay_dcel.faces.values()
+            if face.info is not None
+        ]
+        plot_overlay(overlay_dcel.segments, labels, file_path)
 
     if output_folder:
         overlay_dcel.to_image(f"{file_path}_graph")

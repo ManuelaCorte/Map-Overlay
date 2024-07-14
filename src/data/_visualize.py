@@ -98,7 +98,7 @@ def plot_overlay(
             center.y,
             marker="$" + str(i) + "$",
             color="black",
-            s=50,
+            s=150,
             label=info,
         )
     ax.legend()
