@@ -168,3 +168,4 @@ cython_debug/
 
 # Plots and images
 *.png
+!report/images/*.png
